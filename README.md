@@ -523,12 +523,44 @@ eas submit --platform android --profile production
 
 ### Sürüm numaraları
 
-Kullanıcıya görünen sürüm (`1.1.0`) `app.json` içindeki `version` alanından okunur.
+İki ayrı sayı var ve karıştırılmaları en sık yapılan hata:
+
+| | nedir | nerede | kim artırıyor |
+|---|---|---|---|
+| **Sürüm** (`version`) | kullanıcıya görünen — `1.1.1` | `app.json` | **elle** |
+| **Build numarası** | mağazanın yükleme kimliği — `buildNumber` / `versionCode` | EAS sunucusu | otomatik |
 
 Build numarası ve versionCode **EAS sunucusunda** tutulur (`appVersionSource: "remote"`),
 `app.json`'da bilerek yok — `production` profilinde her derlemede otomatik artar. Böylece
 "yerelde arttı ama commit'lemeyi unuttum, mağaza aynı numarayı reddetti" tuzağı ortadan
 kalkar.
+
+#### Sürüm ne zaman elle artırılır
+
+`app.json`'daki `version`, mağazada **yayımlanmış** bir sürümün üzerine yeni bir sürüm
+çıkarırken artırılır. Aynı sürümün TestFlight/internal test derlemeleri artırmayı
+gerektirmez — onlar için build numarası zaten değişiyor.
+
+Üç yerde birden: `app.json`, `package.json`, `package-lock.json`. `check:release`
+ilk ikisinin eşit olduğunu doğruluyor.
+
+#### "Otomatik artsın" isteniyorsa
+
+`autoIncrement` platform bazında sürümü de artırabiliyor (`@expo/eas-json`
+şemasından: ortak alan yalnızca `boolean`, `android` `'version' | 'versionCode'`,
+`ios` `'version' | 'buildNumber'` de kabul ediyor):
+
+```jsonc
+"production": {
+  "ios":     { "autoIncrement": "version" },
+  "android": { "autoIncrement": "version" }
+}
+```
+
+**Bilerek açılmadı.** Sürüm bir ürün kararı: aynı sürümün beş TestFlight derlemesini
+alınca 1.1.5'e çıkmak istemezsiniz, ve `appVersionSource: "remote"` ile sayı EAS'a
+taşındığı için depoya bakan biri artık hangi sürümün canlıda olduğunu göremez.
+Unutmamak için doğru yer bu tablo, otomatik bir sayaç değil.
 
 > **Uzaktan sayacı bir kez tohumlayın.** Yerel değerler kaldırıldığı için EAS'ın içe
 > aktaracağı bir şey yok; tohumlamazsanız sayaç 1'den başlar ve Play, versionCode 3

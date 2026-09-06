@@ -812,3 +812,17 @@ it belongs here. **A mistake made twice has earned a line in this file.**
   `check:panel`'e asenkron bir kontrol eklerken IIFE gerekiyor — ve çıkış
   satırları da o bloğun içine taşınmalı, yoksa iddialar sayılmadan
   `process.exit` koşar ve kontrol her zaman yeşil verir.
+- **`autoIncrement: true` sürümü değil build numarasını artırıyor.** Kurulu
+  `@expo/eas-json` şeması net: profil kökünde alan yalnızca `boolean`, ama
+  `ios` altında `'version' | 'buildNumber'`, `android` altında
+  `'version' | 'versionCode'` da kabul ediliyor. Yani `production`'daki
+  `autoIncrement: true` her derlemede `buildNumber`/`versionCode` artırıyor ve
+  kullanıcıya görünen `version` **hiç değişmiyor** — mağazada yayımlanmış bir
+  sürümün üzerine yeni sürüm çıkarırken `app.json` elle güncellenmek zorunda.
+  "Otomatik artıyor" diye bırakmak, App Store'un aynı sürüm numarasını ikinci
+  kez kabul etmemesiyle sonuçlanıyor.
+- **Sürüm otomatiğe bağlanmadı, ve bu bir karar.** `ios.autoIncrement:
+  "version"` mümkün ama aynı sürümün beş TestFlight derlemesi 1.1.5 üretirdi;
+  üstelik `appVersionSource: "remote"` ile sayı EAS'a taşındığı için depoya
+  bakan biri hangi sürümün canlıda olduğunu göremezdi. Sürüm bir ürün kararı,
+  sayaç değil.
