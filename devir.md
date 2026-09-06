@@ -118,16 +118,59 @@ build almadan da bildirim testine devam edilebilir.
 
 ---
 
-## 4. Açık işler
+## 4. Dağıtım tarafında bilinmesi gerekenler
+
+Bu oturumun kodu iki yere gidiyor ve ikisinin de gereksinimleri farklı.
+
+### `firestore.rules` bu oturumda değişti — ama yayımlanması gerekmiyor
+
+`18d3aaf` iki blok ekledi: `pushLog` ve `pendingPushes`, ikisi de `allow read,
+write: if false`. **Yayımlamak şart değil**, çünkü dosyanın sonundaki catch-all
+onları zaten kapatıyor ve bu defterleri yalnızca panel (Admin SDK) yazıyor —
+Admin SDK kuralları hiç görmüyor. Bloklar açıkça yazıldı ki bir gün "istemci de
+okusun" diyen biri neden okumaması gerektiğini orada görsün.
+
+Yani `npm run rules:deploy` bu değişiklik için **gerekmiyor**. (Depo kuralı hâlâ
+geçerli: repodaki dosya canlıda ne olduğunu söylemez, yalnızca ne yazıldığını.)
+
+### Panelin bildirim otomasyonu yeni bir ortam değişkeni İSTEMİYOR
+
+`ADMIN_AUTO_PUSH` bilerek `.env.example`'da yok: **varsayılan AÇIK.** Kapalı
+varsayılan, bu defterdeki "sessizce çalışmayan özellik" maddesinin bir örneği
+daha olurdu. `ADMIN_AUTO_PUSH=off` yalnızca yerelde çalışırken gerçek
+kullanıcılara push gitmesin diye var — Coolify'da tanımlanmamalı.
+
+Panel zaten sahip olduğu şeylerle çalışıyor: `FIREBASE_SERVICE_ACCOUNT` (push
+göndermek için `devices` okuması ve `pushLog` yazması gerekiyor) ve dışa dönük
+ağ (Expo Push API + `api.kouseng.com`).
+
+### Zamanlayıcılar panel sürecinin içinde
+
+Ayrı bir cron yok; ikisi de `setInterval`:
+
+| ne | sıklık | nerede |
+|---|---|---|
+| Sessiz saat kuyruğunu boşaltma | 10 dk | `startPushFlusher` |
+| Duyuru yoklaması (`api.kouseng.com`) | 15 dk | `startAnnouncementPoller` |
+
+Sonucu: **panel yeniden başlatıldığında sayaçlar sıfırlanır**, ve panel kapalıyken
+hiçbir şey olmaz. Duyuru tarafında bu bilerek zararsız: yaş sınırı 24 saat, yani
+uzun bir kesintiden sonra dönen panel birikmiş listeyi herkese göndermiyor.
+Kuyruk tarafında da zararsız: `pendingPushes` Firestore'da duruyor, bellekte
+değil.
+
+---
+
+## 5. Açık işler
 
 Öncelik sırasına göre. Hiçbiri acil değil; hiçbiri bozuk değil.
 
-### 4.1 Canlı doğrulama (kod işi değil)
+### 5.1 Canlı doğrulama (kod işi değil)
 
 Yukarıdaki "henüz görülmedi" tablosu. Panel bir kez daha deploy edilince
 `/bildirimler` sayfasından hepsi görünür hâle geliyor.
 
-### 4.2 Bülten bildirimi içeriğe bakmıyor
+### 5.2 Bülten bildirimi içeriğe bakmıyor
 
 Yerel bir günlük zamanlayıcı, kurulduğu gün yarının bülteninin var olup olmadığını
 bilemez. Metin artık iddia etmiyor ("Bülten sekmesine göz atma vakti") ama bülten
@@ -140,7 +183,7 @@ Supabase'ini anon anahtarla okuyabilir.
 
 Kullanıcı "sabah bir bildirim yeterli" dedi, o yüzden yapılmadı.
 
-### 4.3 Sürüm otomatik artmıyor — ve artamaz
+### 5.3 Sürüm otomatik artmıyor — ve artamaz
 
 `eas.json`'da `appVersionSource: "remote"`. eas-cli bu modda sürüm artırmayı **sabit
 olarak kapatıyor**:
@@ -158,7 +201,7 @@ Bir sonraki mağaza sürümünde `app.json` + `package.json` + `package-lock.jso
 üçünde birden elle artırmak gerekiyor (`check:release` ilk ikisinin eşitliğini
 doğruluyor, kilidi doğrulamıyor).
 
-### 4.4 AI Gündem'de bilinen üç eksik
+### 5.4 AI Gündem'de bilinen üç eksik
 
 `docs/ai-gundem-port.md` içinde kayıtlı, bilerek bırakıldı:
 
@@ -167,7 +210,7 @@ doğruluyor, kilidi doğrulamıyor).
 - `unseenCount` ölü kod — yalnızca kendi testi çağırıyor.
 - `poll_after_seconds` yoksayılıyor; `pollAfterSeconds()` yazıldı ama hiç çağrılmıyor.
 
-### 4.5 Backend deposu emekli
+### 5.5 Backend deposu emekli
 
 `Akadirr1/follow-ai` emekliye ayrıldı ama **dağıtılmış Edge fonksiyonları çalışmaya
 devam ediyor.** Doğru düzeltme (`sync-feeds` yeni haberi eklerken özet işini de
@@ -187,7 +230,7 @@ bulundu.
 
 ---
 
-## 5. Bir sonraki oturumun ilk beş dakikası
+## 6. Bir sonraki oturumun ilk beş dakikası
 
 ```bash
 git log --oneline -1              # 7435364 bekleniyor
@@ -201,7 +244,7 @@ sıfırlanıyor). Kurarken hariç tutulacaklar `AGENTS.md`'de yazıyor: `assets/
 
 ---
 
-## 6. Çalışma tarzına dair, bu oturumda oturan şeyler
+## 7. Çalışma tarzına dair, bu oturumda oturan şeyler
 
 - **Her iş kendi dalında.** Bu oturumun başında aylardır tek bir dalda çalışılıyordu;
   kullanıcı bunu düzeltmemi istedi. Dal adları: `claude/<kısa-konu>`.
