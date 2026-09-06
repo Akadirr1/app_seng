@@ -137,12 +137,14 @@ geçerli: repodaki dosya canlıda ne olduğunu söylemez, yalnızca ne yazıldı
 
 `ADMIN_AUTO_PUSH` bilerek `.env.example`'da yok: **varsayılan AÇIK.** Kapalı
 varsayılan, bu defterdeki "sessizce çalışmayan özellik" maddesinin bir örneği
-daha olurdu. `ADMIN_AUTO_PUSH=off` yalnızca yerelde çalışırken gerçek
-kullanıcılara push gitmesin diye var — Coolify'da tanımlanmamalı.
+daha olurdu. Coolify'da tanımlanmamalı.
 
 Panel zaten sahip olduğu şeylerle çalışıyor: `FIREBASE_SERVICE_ACCOUNT` (push
 göndermek için `devices` okuması ve `pushLog` yazması gerekiyor) ve dışa dönük
 ağ (Expo Push API + `api.kouseng.com`).
+
+> ⚠️ **`ADMIN_AUTO_PUSH=off` tam bir kapatma anahtarı DEĞİL** — ölçüldü, bkz.
+> §5.6. Yerelde paneli **üretim servis hesabıyla** ayağa kaldırmayın.
 
 ### Zamanlayıcılar panel sürecinin içinde
 
@@ -227,6 +229,41 @@ git clone … /home/user/akadirr1/follow-ai
 Depo herkese açık. Sunucu sözleşmesini **tahmin etmeyin, kaynağı okuyun** — bu
 oturumda bir alan adı uyuşmazlığı (`summary_tr` vs `bullets`) tam olarak böyle
 bulundu.
+
+
+### 5.6 `ADMIN_AUTO_PUSH=off` sessiz saat kuyruğunu durdurmuyor
+
+Bu oturumun son bulgusu, düzeltilmedi. **Ölçüldü:**
+
+| yol | `off` okunuyor mu |
+|---|---|
+| `announce()` — yeni etkinlik, iptal, çekiliş, duyuru | ✅ evet (`admin/push.ts:352`) |
+| `flushPending()` — sessiz saat kuyruğu | ❌ **hayır** |
+| `sendTestPush()` — `/bildirimler` test düğmesi | ❌ hayır (elle basılıyor, tartışmalı) |
+
+`startPushFlusher(db)` `app.listen` geri çağrısında **koşulsuz** başlıyor
+(`admin/server.ts:1092`) ve `run()` interval'den önce **bir kez hemen** koşuyor.
+Yani üretim servis hesabıyla yerelde `ADMIN_AUTO_PUSH=off npm run admin` demek,
+`pendingPushes`'ta bekleyen ne varsa saniyeler içinde gerçek cihazlara gitmesi
+demek.
+
+İkinci yarısı daha kötü: `flushPending` kuyruk dokümanını göndermeden **önce**
+siliyor (`admin/push.ts:275` — yarıda kalan bir tur aynı bildirimi iki kez
+göndermesin diye, ve o gerekçe doğru). Sonuç: bildirim **hem yanlış zamanda**
+gidiyor **hem de** sunucudaki panel onu doğru zamanda bir daha göndermiyor.
+
+`autoPushEnabled`'ın kendi yorumu ("Yerelde panel çalıştırırken gerçek
+kullanıcılara bildirim gitmesini istemiyorsanız…") bu davranışı anlatmıyor —
+yani deponun kendi "**bir yorumun anlattığı davranış, davranış değildir**"
+maddesinin bir örneği daha.
+
+**Düzeltmesi küçük:** kapıyı `flushPending`'in başına koymak (zamanlayıcıya
+değil — tek çağıran o olsa da yan etkiyi taşıyan fonksiyon korunmalı), yorumu
+gerçeğe çekmek, ve `check:panel`'e sahte Firestore ile iki iddia eklemek:
+`off` iken hiçbir şey gönderilmiyor **ve** kuyruk dokümanı duruyor. Kontrol
+eklenmeden önce kırmızı verdiği görülmeli.
+
+Bu oturumda yapılmadı: kullanıcı devir notunu istemişti, tarama sırasında çıktı.
 
 ---
 
