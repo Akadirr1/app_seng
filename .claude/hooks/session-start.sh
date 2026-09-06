@@ -38,6 +38,42 @@ else
   fi
 fi
 
+# Ponytail — "tembel kıdemli geliştirici" disiplini (MIT, @dietrichgebert/ponytail).
+# native-core.md'nin 4. maddesiyle ("gerçekten doğru olan en küçük değişiklik")
+# aynı yöne bakıyor; farkı, kod yazmadan önce tırmanılan somut bir merdiven
+# olması: zaten var mı → stdlib → platformun kendi özelliği → kurulu bağımlılık
+# → tek satır.
+#
+# Neden depoya kopyalanmıyor: dosyalar bu deponun malı değil, sürümleri npm'de,
+# ve NOTICE.md'nin çizdiği lisans sınırı .claude/skills/ içini "burada yazıldı"
+# olarak tanımlıyor. graphify ve supabase ile aynı sınıf: konteyner unutuyor,
+# hook geri getiriyor.
+#
+# npm paketi `skills/` dizinini olduğu gibi yayımlıyor — git checkout'uyla
+# birebir aynı olduğu `diff -r` ile ölçüldü, o yüzden klonlamaya gerek yok.
+#
+# supabase bloğu gibi dizine bakarak korunuyor, `command -v` ile değil: bu
+# kurulum bir binary bırakmıyor, yalnızca SKILL.md dosyaları.
+#
+# Bu kurulum skill katmanı: /ponytail, /ponytail-review, /ponytail-audit,
+# /ponytail-debt, /ponytail-gain, /ponytail-help çağrıldığında çalışır. Her
+# isteme otomatik enjeksiyon (plugin katmanı) bilerek açılmadı — onu istersen
+# `/plugin marketplace add DietrichGebert/ponytail`.
+if [ -d "$HOME/.claude/skills/ponytail" ]; then
+  echo "ponytail skills already present"
+else
+  echo "installing ponytail skills..."
+  PONYTAIL_TMP="$(mktemp -d)"
+  if npm i --no-save --silent --prefix "$PONYTAIL_TMP" @dietrichgebert/ponytail >/dev/null 2>&1 \
+    && mkdir -p "$HOME/.claude/skills" \
+    && cp -r "$PONYTAIL_TMP/node_modules/@dietrichgebert/ponytail/skills/." "$HOME/.claude/skills/"; then
+    echo "ponytail skills installed"
+  else
+    echo "ponytail skills install skipped (offline?)" >&2
+  fi
+  rm -rf "$PONYTAIL_TMP"
+fi
+
 if command -v graphify >/dev/null 2>&1; then
   echo "graphify already present ($(graphify --version 2>&1 | head -1))"
 else
