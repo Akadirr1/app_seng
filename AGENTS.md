@@ -549,10 +549,28 @@ it belongs here. **A mistake made twice has earned a line in this file.**
   diyordu; o dosya yoktu. Bu defterde zaten aynısının bir örneği var
   (`syncPending`). Dosya artık var ve o ölçümü gerçekten yapıyor.
 - **Grafiği kurarken `docs/` ve `*.md` dışarıda bırakılırsa maliyet sıfır.**
-  Semantik çıkarım alt ajan istiyor; AST yarısı istemiyor. `/graphify .` bu
-  depoda kod-only koşturulduğunda 111 dosya → 1005 düğüm, 2272 kenar, tek
-  LLM çağrısı olmadan. Mimari sorular için yeterli: yukarıdaki "yalnızca kendi
-  testi çağırıyor" bulgusu bir grafik sorgusu, dosya taraması değil.
+  Semantik çıkarım alt ajan istiyor; AST yarısı istemiyor. Mimari sorular için
+  AST yarısı yeterli: yukarıdaki "yalnızca kendi testi çağırıyor" bulgusu bir
+  grafik sorgusu, dosya taraması değil.
+
+  **Düğüm sayısı bir anlık görüntü, beklenti değil** — kod eklendikçe artıyor,
+  ve kaç çıkacağı dışlamalara bağlı. İki ölçüm, ikisi de gerçek:
+
+  | ne zaman | nasıl | sonuç |
+  |---|---|---|
+  | ilk kayıt | `/graphify .`, kod-only, dışlamalar uygulanmış | 111 dosya → 1005 düğüm, 2272 kenar |
+  | 2026-09 | `graphify update .`, **dışlama yok** | 152 dosya → 1423 düğüm, 3306 kenar |
+
+  İki sayı doğrudan karşılaştırılamaz: ikinci koşum `design-source/` ve
+  `.claude/skills/*`'ı da içeri aldı, ki bu defterin birkaç satır yukarısı
+  onları dışarıda tutmak gerektiğini söylüyor. Yani bir rakam bu tablodakinden
+  büyük çıktığında önce "hangi dışlamalarla koşturuldu" diye sorun — kod büyümüş
+  de olabilir, dışlama unutulmuş da.
+
+  Maliyeti ölçüldü: **13 sn (soğuk) / 2 sn (sıcak), sıfır LLM çağrısı, 3.2 MB.**
+  `graphify update` saf AST çıkarımı — token yemiyor. Grafiği git'te saklamayı
+  düşünmeden önce bu satırı okuyun: saklanacak şeyin maliyeti 13 saniye, ve
+  `graphify-out/` gitignore'da olmasının sebebi bu dosyanın üstünde yazıyor.
 
 ### Cihazdan gelen "çeviri gelmiş ama özet oluşturamıyor" raporundan
 
