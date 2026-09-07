@@ -38,6 +38,17 @@ else
   fi
 fi
 
+# Ponytail burada kurulmuyor — `.claude/settings.json` kuruyor.
+#
+# Bir tur bu hook'tan npm ile kuruldu, sonra plugin olarak kurulunca blok
+# kaldırıldı: aynı altı skili iki kaynaktan almak, ikisi ayrışana kadar
+# çalışan bir kurulum demek. Hook npm'in en güncelini çekiyordu, plugin ise
+# bir commit SHA'sına sabitli — yani ayrışma kesindi, sadece zamanı belirsizdi.
+#
+# settings.json'daki `extraKnownMarketplaces` + `enabledPlugins` ikilisi
+# commit'li, dolayısıyla konteyner sıfırlansa da duruyor: bu hook'un çözdüğü
+# problem (konteyner unutuyor) plugin tarafında zaten çözülmüş. Üstünde
+# skillerin getirmediği üç yaşam döngüsü hook'u var — asıl fark o, bkz. PR #44.
 if command -v graphify >/dev/null 2>&1; then
   echo "graphify already present ($(graphify --version 2>&1 | head -1))"
 else

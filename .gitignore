@@ -49,6 +49,30 @@ yarn-error.*
 # dokümanın semantik çıkarımı.
 graphify-out/
 
+# SessionStart hook'unun indirdiği hesap seviyesi skiller.
+#
+# graphify-out/ ile aynı sınıf: hook üretiyor, konteyner başına yeniden
+# geliyor, commit edilmesi doğru değil. `npx skills add` dosyaları
+# `.agents/skills/` altına yazıp `.claude/skills/` içine sembolik bağ kuruyor
+# ve bir de kilit dosyası bırakıyor — dördü de her oturumda sıfırdan üretiliyor.
+#
+# AGENTS.md bunu zaten kural olarak yazıyor ("Account skills — downloaded per
+# container. Do not copy them here."), ama .gitignore'a yazılmadığı için her
+# oturum `git status` kirli başlıyordu ve "çalışma ağacı temiz" bir sinyal
+# olmaktan çıkmıştı.
+#
+# Kilit dosyası da buraya dâhil: hook onu okumuyor, `npx skills add`'i her
+# oturum yeniden koşturuyor. Hiçbir şeyin okumadığı bir kilidi commit etmek
+# yukarı akış değiştiğinde sessizce değişen bir diff üretir, karşılığında
+# hiçbir şeyi sabitlemez.
+#
+# Depoya ait skiller (native-core.md ve dört disiplin skili) bu kuralın
+# dışında: onlar versiyon kontrolünde ve orada kalıyorlar.
+.agents/
+skills-lock.json
+.claude/skills/supabase
+.claude/skills/supabase-postgres-best-practices
+
 # generated native folders
 /ios
 /android
