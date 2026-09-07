@@ -46,6 +46,41 @@ export type Raffle = {
 };
 
 /**
+ * Okunan bir dokümanın kullanılabilir bir çekiliş tanımı olup olmadığı.
+ *
+ * **Neden var:** uygulama bir etkinliği "çekiliş" saymak için yalnızca
+ * `raffles/{eventId}` dokümanının VAR OLMASINA bakıyordu. Yani içi boş ya da
+ * yarım kalmış bir doküman — bir deneme, yarıda bırakılmış bir kayıt, elle
+ * açılmış bir satır — normal bir etkinliği çekilişe çeviriyor: 5.3.1 beyanı,
+ * "Çekilişe Katıl" düğmesi ve `undefined kişi kazanacak` satırı çıkıyor.
+ * Kullanıcı bunu "normal etkinliklerde bile çekiliş ibaresi çıkıyor" olarak
+ * bildirdi.
+ *
+ * Kapı, panelin kendi kabul ettiği üç alanla aynı: panel `winnerCount` ve
+ * `entriesCloseAt` olmadan kaydetmiyor (`admin/server.ts`, POST /raffles/:id),
+ * ve alan listesi boş olamıyor. Dolayısıyla bu üçünü taşımayan bir doküman
+ * panelin çekiliş formundan çıkmamıştır.
+ *
+ * `winners`/`drawnAt` kapıya dâhil değil: ikisi de çekiliş çekildikten sonra
+ * doluyor ve yokluğu "henüz çekilmedi" demek, "çekiliş değil" değil.
+ */
+export function isRaffle(value: unknown): value is Raffle {
+  if (typeof value !== 'object' || value === null) return false;
+  const r = value as Record<string, unknown>;
+  return (
+    typeof r.eventId === 'string' &&
+    r.eventId !== '' &&
+    Array.isArray(r.fields) &&
+    r.fields.length > 0 &&
+    typeof r.winnerCount === 'number' &&
+    Number.isInteger(r.winnerCount) &&
+    r.winnerCount >= 1 &&
+    typeof r.entriesCloseAt === 'string' &&
+    r.entriesCloseAt !== ''
+  );
+}
+
+/**
  * Yeni bir çekilişin başladığı alan kümesi. Kulübün her çekilişte sorduğu
  * dördü; telefon, e-posta ve Instagram admin panelden tek tıkla ekleniyor.
  */
