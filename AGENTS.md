@@ -826,3 +826,66 @@ it belongs here. **A mistake made twice has earned a line in this file.**
   üstelik `appVersionSource: "remote"` ile sayı EAS'a taşındığı için depoya
   bakan biri hangi sürümün canlıda olduğunu göremezdi. Sürüm bir ürün kararı,
   sayaç değil.
+
+### "Çeviri geç geliyor / hiç gelmiyor" raporundan — sunucunun dört tavanı
+
+Cihazdan gelen soru şuydu: *"API key rate limitine mi takılıyor? İki tane var,
+farklı kaynaklardan, takılmaması gerek."* Cevap hayır, ve neden hayır olduğu
+`Akadirr1/follow-ai` kaynağında yazıyor. **Sunucu sözleşmesini tahmin etmeyin,
+kaynağı okuyun** — bu defterde zaten bir kez `summary_tr`/`bullets` olarak
+yaşandı.
+
+- **İki sağlayıcı anahtarı yalnızca `retryable` hatada işe yarıyor.**
+  `_shared/ai-provider.ts` `withFallback`: primary başarısız olursa ikinci
+  sağlayıcı **sadece** hata retryable ise deneniyor. 429 tam da bunun için
+  (yorumu açıkça söylüyor). Ama `refusal`, `auth`, `bad_request` ve **her
+  `schema_*`** non-retryable — ikinci anahtar hiç görülmüyor. Yani "iki key var"
+  varsayımı yarı doğru, ve yanlış olan yarısı asıl başarısızlık sınıfını kapsıyor.
+- **Asıl darboğaz sağlayıcı limiti değil, sunucunun kendi tavanları.** Dördü
+  birden: cron `*/2 * * * *` × `max_jobs: 3` = **saatte 90 makale** (global,
+  tüm kullanıcılar); `AI_DAILY_CAP_DEFAULT = 200`/gün (dolunca worker
+  `skipped:'daily_cap'` deyip hiçbir şey işlemiyor); şema ihlalinde kalıcı ölüm;
+  çıktı iki kez kesilirse (`truncatedTwice`) iş ölü. İki API anahtarı bunların
+  hiçbirine dokunmuyor.
+- **Çeviri ve özet tek çağrı, tek şema — biri giderse ikisi de gidiyor.**
+  `_shared/schemas.ts`: makale dili `tr` değilse model çeviriyi vermek
+  **zorunda**, vermezse `translation_missing_for_foreign_article`. Dil de
+  tespit edilmiyor, kaynaktan miras alınıyor (`_shared/ingest.ts`).
+- **Ölü bir iş istemciye hâlâ `queued` görünüyor.** `_shared/enrichment.ts`:
+  denemeleri tükenmiş işin cevabı yine `queued`, sebep `previous_attempt_failed`.
+  Yani "hazırlanıyor" ile "bir daha asla" kablodan aynı `status` ile geçiyor;
+  ayıran tek şey `reason`.
+- **Haberlerin kısa olması hata değil, besleme.** `_shared/feed.ts`: tam metin
+  çekimi yok. `content:encoded` varsa tam gövde, yoksa `<description>` yani
+  teaser — ve kodun kendi yorumu "altı beslemeden yalnızca Webrazzi
+  `content:encoded` gönderiyor" diyor. Haberin taze olması uzunluğunu
+  değiştirmiyor; uzunluğu yayıncı belirliyor.
+
+Uygulamanın kaldıracı yine yalnızca **ne göstereceği**: teşhis zaten
+`console.warn`'a yazılıyordu ve bir release derlemesinin konsolu yok, yani
+kullanıcıya ulaşan tek şey sonsuza kadar dönen bir göstergeydi. Artık gösterge
+yalnızca gerçekten bir istek uçuştayken dönüyor, ve durduğunda sunucunun
+`reason`'ı ekrana yazılıyor (`enrichmentStalledMessage`).
+
+### React Query'nin izlenen özellikleri — iki ölçüm
+
+İkisi de yukarıdaki düzeltmeyi yazarken çıktı ve ikisi de sessizce yanlış
+davranıyordu.
+
+- **`dataUpdateCount` `QueryState`'te duruyor, `useQuery`'nin döndürdüğü nesnede
+  değil** (kurulu `@tanstack/query-core` tiplerinde ölçüldü: `QueryState`'te var,
+  `QueryObserverBaseResult`'ta yok). Client'tan okunabiliyor ama **izlenen bir
+  özellik olmadığı için değiştiğinde render tetiklemiyor** — ondan türetilen bir
+  bayrak hiçbir zaman dönmüyor. Yoklama sayacına dayanan "yoklama bitti mi"
+  bayrağı tam olarak böyle çalışmadı.
+- **Sonucu yaymak (`{...query}`) her alana abone olmaktır.** İzlenen özellikler
+  hangi alanı okursanız ona abone ediyor; yaymak bütün getter'ları okuyor,
+  dolayısıyla optimizasyonu kapatıp fazladan render üretiyor. Görünür sonucu:
+  yoklama bitiminde bir kez yazılması gereken uyarı iki kez yazıldı ve mevcut
+  "warns once" testi kırmızı verdi. `Object.assign(query, …)` hedefi okumadığı
+  için aboneliği bozmuyor — ama yukarıdaki madde yüzünden o da çözüm değildi.
+
+Sonuçta sayaç hiç kullanılmadı: "iş öldü" bilgisi zaten sunucudan ilk cevapta
+`previous_attempt_failed` olarak geliyor, ve "şu an gerçekten deniyor muyuz"
+sorusunun cevabı `isFetching`. **Türetilecek bir durum ararken önce elde olanı
+sayın** — sayaç, olmayan bir soruna yazılmış bir mekanizmaydı.

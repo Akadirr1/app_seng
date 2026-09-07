@@ -2,6 +2,7 @@ import {
   ENRICHMENT_POLL_SCHEDULE_SECONDS,
   ENRICHMENT_POLL_WINDOW_SECONDS,
   enrichmentPollDelayMs,
+  enrichmentStalledMessage,
 } from '../hooks';
 
 /**
@@ -71,5 +72,43 @@ describe('enrichmentPollDelayMs', () => {
     const end = ENRICHMENT_POLL_SCHEDULE_SECONDS.length;
     expect(enrichmentPollDelayMs(end)).toBeNull();
     expect(enrichmentPollDelayMs(end + 10)).toBeNull();
+  });
+});
+
+/**
+ * Sunucu neden beklediğini söylüyor; ekran da söylemeli.
+ *
+ * Sebep zaten taşınıyordu (`{status:'queued', reason}`) ve yalnızca
+ * `console.warn`'a yazılıyordu — bir release derlemesinde konsol yok, yani
+ * kullanıcıya ulaşan tek şey sonsuza kadar dönen bir göstergeydi. Bu, defterdeki
+ * `ContentNotice` maddesiyle aynı sınıf: her sebebe aynı cümleyi söylemek.
+ */
+describe('enrichmentStalledMessage', () => {
+  it('üç sebep için üç ayrı cümle veriyor', () => {
+    const failed = enrichmentStalledMessage('previous_attempt_failed');
+    const noKey = enrichmentStalledMessage('no_api_key');
+    const queued = enrichmentStalledMessage(null);
+
+    expect(new Set([failed, noKey, queued]).size).toBe(3);
+  });
+
+  it('hiçbir sebepte "hazırlanıyor" demiyor — yoklama durdu, hazırlanmıyor', () => {
+    for (const reason of ['previous_attempt_failed', 'no_api_key', null, undefined]) {
+      expect(enrichmentStalledMessage(reason)).not.toContain('hazırlanıyor');
+    }
+  });
+
+  it('bilinmeyen ya da eksik sebepte de bir cümle veriyor', () => {
+    for (const reason of [null, undefined, '', 'sunucudan_yeni_gelen_sebep']) {
+      expect(enrichmentStalledMessage(reason).length).toBeGreaterThan(0);
+    }
+  });
+
+  /**
+   * Ölü bir iş için "bekleyin" demek yanlış yönlendirme: o iş denemelerini
+   * tüketti ve kendiliğinden ilerlemeyecek.
+   */
+  it('previous_attempt_failed için üretilemediğini söylüyor', () => {
+    expect(enrichmentStalledMessage('previous_attempt_failed')).toContain('üretilemedi');
   });
 });
