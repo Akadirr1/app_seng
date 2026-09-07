@@ -232,13 +232,43 @@ describe('article screen — a summary already in hand', () => {
   it('still asks, and still says "hazırlanıyor", when there is no summary yet', async () => {
     const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
     try {
+      // Sebepsiz `queued` — kanonik bekleme hâli: iş gerçekten sırasını
+      // bekliyor. Bu fikstür eskiden `no_api_key` idi; sunucu bir sebep
+      // söylediğinde ekran artık o sebebi yazıyor, ve bu testin koruduğu şey
+      // sebep değil "özet yokken hâlâ sorar ve bekleme durumu gösterir".
       const { view, edge } = mount([translatedOnlyRow()], {
         status: 'queued',
-        reason: 'no_api_key',
+        reason: null,
       });
       await view;
       expect(await screen.findByText('Özet hazırlanıyor')).toBeTruthy();
       await waitFor(() => expect(edge.calls.length).toBeGreaterThan(0));
+      await (await view).unmount();
+    } finally {
+      warn.mockRestore();
+    }
+  }, 30000);
+
+  /**
+   * Sunucu neden ilerlemediğini söylediğinde ekran onu yazmalı.
+   *
+   * Sebep (`no_api_key`, `previous_attempt_failed`) kablodan geliyor ve
+   * istemcide taşınıyordu, ama yalnızca `console.warn`'a yazılıyordu — bir
+   * release derlemesinin konsolu yok, dolayısıyla kullanıcıya ulaşan tek şey
+   * sonsuza kadar dönen bir göstergeydi. "hazırlanıyor" burada düpedüz yanlış:
+   * anahtar yokken hiçbir şey hazırlanmıyor.
+   */
+  it('sunucu bir sebep bildirdiğinde "hazırlanıyor" demiyor, sebebi yazıyor', async () => {
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      const { view } = mount([translatedOnlyRow()], {
+        status: 'queued',
+        reason: 'no_api_key',
+      });
+      await view;
+
+      expect(await screen.findByText(/yapılandırılmamış/)).toBeTruthy();
+      expect(screen.queryByText('Özet hazırlanıyor')).toBeNull();
       await (await view).unmount();
     } finally {
       warn.mockRestore();

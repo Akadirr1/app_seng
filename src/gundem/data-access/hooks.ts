@@ -161,6 +161,29 @@ export const ENRICHMENT_POLL_WINDOW_SECONDS = ENRICHMENT_POLL_SCHEDULE_SECONDS.r
 );
 
 /**
+ * Yoklama bittiğinde ekranda yazacak cümle — sunucunun bildirdiği sebebe göre.
+ *
+ * **Neden saf bir fonksiyon:** teşhis zaten vardı ama yalnızca `console.warn`'a
+ * gidiyordu, ve bu defterin kendi kuralı "bir release derlemesinin konsolu
+ * yoktur". Yani sebep biliniyor, taşınıyor, loglanıyor ve ekrana hiç ulaşmıyordu
+ * — `ContentNotice`'ın her sebebe "bağlantını kontrol et" demesiyle aynı sınıf.
+ *
+ * Sebepler sunucunun `QueuedReason`'ı: `no_api_key` ve `previous_attempt_failed`
+ * (backend `_shared/enrichment.ts`). Üçüncü hâl `null`, ve o "sebep yok, iş
+ * sırasını bekliyor" demek — kuyruk gerçekten uzun olabilir: worker iki
+ * dakikada bir en fazla 3 iş alıyor (saatte 90) ve günlük tavan 200.
+ */
+export function enrichmentStalledMessage(reason: string | null | undefined): string {
+  if (reason === 'previous_attempt_failed') {
+    return 'Bu haberin özeti üretilemedi. Kaynağa gidebilir ya da tekrar deneyebilirsiniz.';
+  }
+  if (reason === 'no_api_key') {
+    return 'Özet servisi şu an yapılandırılmamış. Daha sonra tekrar deneyin.';
+  }
+  return 'Özet sunucu sırasında bekliyor. Ekranı açık tutmak sırayı hızlandırmıyor; daha sonra tekrar deneyin.';
+}
+
+/**
  * Ask for an article's summary and keep asking while it is `queued`.
  *
  * Polling stops after `ENRICHMENT_MAX_POLLS` with a warning: with
@@ -175,7 +198,7 @@ export function useEnrichment(
   const repos = useRepositories();
   const maxPolls = options.maxPolls ?? ENRICHMENT_POLL_SCHEDULE_SECONDS.length;
 
-  return useQuery({
+  const query = useQuery({
     queryKey: queryKeys.enrichment(articleId ?? ''),
     enabled: Boolean(articleId) && options.enabled !== false,
     queryFn: () => repos.enrichment.requestEnrichment(articleId as string).then(unwrap),
@@ -213,4 +236,6 @@ export function useEnrichment(
       return delay;
     },
   });
+
+  return query;
 }

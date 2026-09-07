@@ -15,7 +15,11 @@ import {
 } from '../../src/components/ui';
 import { bodyFor, hasSummary, segmentState, type Segment } from '../../src/gundem/article/segment';
 import { ArticleBody } from '../../src/gundem/components/ArticleBody';
-import { useArticle, useEnrichment } from '../../src/gundem/data-access/hooks';
+import {
+  enrichmentStalledMessage,
+  useArticle,
+  useEnrichment,
+} from '../../src/gundem/data-access/hooks';
 import { useSavedArticles } from '../../src/gundem/user-state/hooks';
 import { relativeTimeTr } from '../../src/gundem/format/relativeTime';
 import { colors, gradients, radius } from '../../src/theme';
@@ -83,6 +87,28 @@ export default function GundemArticleRoute() {
   */
   const pending = !summaryReady && (result?.status === 'queued' || !result);
   const unavailable = !summaryReady && result?.status === 'unavailable';
+  /*
+    `queued` iki farklı şey demek ve ayıran tek şey `reason`:
+
+      reason yok  → iş gerçekten sırasını bekliyor; worker iki dakikada bir
+                    koşuyor. Beklemek uzun sürebilir ama gelecek, o yüzden
+                    "hazırlanıyor" doğru.
+      reason var  → sunucu neden ilerlemediğini söylüyor: `previous_attempt_failed`
+                    (denemeleri tükendi, kendiliğinden bir daha denenmeyecek) ya
+                    da `no_api_key`. Burada dönen bir gösterge yalan.
+
+    Sebep zaten taşınıyordu ve yalnızca `console.warn`'a yazılıyordu — bir
+    release derlemesinin konsolu yok, yani kullanıcıya ulaşan tek şey sonsuza
+    kadar dönen bir çarktı.
+
+    Yoklamanın bitip bitmediğini saymayı denedim, yanlış yoldu: `dataUpdateCount`
+    izlenen bir özellik değil (render tetiklemiyor), `isFetching` ise yoklamalar
+    ARASINDA da false — onunla ekran, uygulama hâlâ sorarken "sonra tekrar
+    deneyin" derdi. Sunucunun sebebi bunların ikisine de gerek bırakmıyor ve ilk
+    cevapta geliyor.
+  */
+  const queuedReason = result?.status === 'queued' ? result.reason : null;
+  const stalled = pending && Boolean(queuedReason);
   const body = bodyFor(article, summary, active);
 
   return (
@@ -143,15 +169,17 @@ export default function GundemArticleRoute() {
             </Txt>
           ) : pending ? (
             <View style={styles.pendingRow}>
-              <ActivityIndicator size="small" color={colors.blue500} />
+              {/*
+                Sunucu ilerlemediğini söylediyse gösterge dönmüyor: dönen bir
+                çark orada "sürüyor" demek olurdu ve sürmüyor.
+              */}
+              {stalled ? null : <ActivityIndicator size="small" color={colors.blue500} />}
               <Txt size={13.5} color={colors.textBody} style={{ flex: 1 }}>
-                Özet hazırlanıyor
+                {stalled ? enrichmentStalledMessage(queuedReason) : 'Özet hazırlanıyor'}
               </Txt>
               {/*
                 Yoklama takvimi sunucunun iki dakikada bir çalışan cron'unun iki
-                periyodunu kapsıyor ve sonra duruyor. Durduğunda ekranda dönen bir
-                gösterge kalıyordu ve hiçbir şey olmuyordu — kullanıcı için bu,
-                sonsuza kadar "hazırlanıyor" demek. Elle sorma yolu her zaman açık.
+                periyodunu kapsıyor ve sonra duruyor. Elle sorma yolu her zaman açık.
               */}
               <Pressable
                 onPress={() => void enrichment.refetch()}

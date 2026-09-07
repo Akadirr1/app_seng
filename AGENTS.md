@@ -844,3 +844,97 @@ it belongs here. **A mistake made twice has earned a line in this file.**
   üstelik `appVersionSource: "remote"` ile sayı EAS'a taşındığı için depoya
   bakan biri hangi sürümün canlıda olduğunu göremezdi. Sürüm bir ürün kararı,
   sayaç değil.
+
+### "Çeviri geç geliyor / hiç gelmiyor" raporundan
+
+**Bu bölüm bir kez yanlış yazıldı ve canlı veri düzeltti.** Önce yalnızca kaynak
+kodu okunarak "sebep rate limit değil, sunucunun dört tavanı" denmişti. Sonra
+Supabase MCP bağlanınca ölçüldü ve tablo bunun tersini söyledi. Kaynak okumak
+mekanizmayı verir, **hangi mekanizmanın gerçekten tetiklendiğini vermez** —
+onun için üretim verisi gerekiyor. Aşağıdakiler ölçülmüş hâli.
+
+Ölçüm anı: 22 ölü iş, `private.ai_jobs where status='failed'`:
+
+| `last_error_code` | adet | ort. gövde |
+|---|---|---|
+| `rate_limited` | **13** | 1257 karakter |
+| `output_truncated` | 6 | **139 karakter** |
+| `server_error` | 1 | 164 |
+| `schema_summary_wrong_length` | 1 | 141 |
+| `schema_summary_item_too_long` | 1 | 166 |
+
+- **Kullanıcının hipotezi doğruydu: hız limiti birinci sebep.** 22 ölümün 13'ü
+  `rate_limited`, hepsi 5 denemeyi tüketmiş. "Sebep rate limit değil" demek
+  yanlıştı.
+- **İkinci anahtar kurulu ve çalışıyor.** Log satırı bunu yazıyor:
+  `"provider":"gemini","fallback":"nvidia"`. Vault'ta iki anahtar da var. Yani
+  429'da NVIDIA deneniyor — ve yine de 13 iş öldüyse ya ikisi birden dolmuştu ya
+  da NVIDIA de reddetti. `withFallback` her iki taraf da düşünce **primary'nin**
+  kodunu yazıyor, o yüzden satırdaki `rate_limited` "yalnızca Gemini doldu"
+  demek değil.
+- **Ama failover'ın kapsamadığı bir sınıf var:** `refusal`, `auth`,
+  `bad_request` ve **her `schema_*`** non-retryable, ikinci sağlayıcıya hiç
+  gitmiyor (`_shared/ai-provider.ts` `withFallback`).
+- **`output_truncated` uzun makalede değil, EN KISA makalelerde çıkıyor.** Bu,
+  ilk okumada tam ters tahmin edilmişti. Altı işin ortalama gövdesi 139, en
+  büyüğü 191 karakter — ve bir kısmı düz metin bile değil, görsel alt-yazısı
+  (*"Collage of images created by Google Pics, with the text…"*). 89 karakterlik
+  bir alt-yazıdan üç ayrı özet maddesi + tam çeviri istemek imkânsıza yakın;
+  model çıktı bütçesini bu işe harcayıp `finishReason: MAX_TOKENS` ile dönüyor.
+  İki `schema_*` hatası da aynı sınıf (141 ve 166 karakter).
+- **Gözlemlenmedi: `AI_DAILY_CAP` ve iş hızı tavanı hiç devreye girmemiş.**
+  Kod bunları taşıyor (`max_jobs: 3` × iki dakikada bir = saatte 90;
+  `AI_DAILY_CAP_DEFAULT = 200`) ama ölçüm anında kuyrukta **sıfır** bekleyen iş
+  vardı ve toplam `ready` 139'du — yani tavanlara yaklaşılmamış bile. Koddaki
+  bir sınırı "darboğaz" ilan etmeden önce ona değilip değinilmediğine bakın.
+- **Çeviri ve özet tek çağrı, tek şema — biri giderse ikisi de gidiyor.**
+  `_shared/schemas.ts`: makale dili `tr` değilse model çeviriyi vermek
+  **zorunda**, vermezse `translation_missing_for_foreign_article`. Dil de
+  tespit edilmiyor, kaynaktan miras alınıyor (`_shared/ingest.ts`).
+- **Ölü bir iş istemciye hâlâ `queued` görünüyor.** `_shared/enrichment.ts`:
+  denemeleri tükenmiş işin cevabı yine `queued`, sebep `previous_attempt_failed`.
+  Yani "hazırlanıyor" ile "bir daha asla" kablodan aynı `status` ile geçiyor;
+  ayıran tek şey `reason`.
+- **Haberlerin kısa olması hata değil, besleme.** `_shared/feed.ts`: tam metin
+  çekimi yok. `content:encoded` varsa tam gövde, yoksa `<description>` yani
+  teaser — ve kodun kendi yorumu "altı beslemeden yalnızca Webrazzi
+  `content:encoded` gönderiyor" diyor. Haberin taze olması uzunluğunu
+  değiştirmiyor; uzunluğu yayıncı belirliyor.
+
+Uygulamanın kaldıracı yine yalnızca **ne göstereceği**: teşhis zaten
+`console.warn`'a yazılıyordu ve bir release derlemesinin konsolu yok, yani
+kullanıcıya ulaşan tek şey sonsuza kadar dönen bir göstergeydi. Artık sunucu
+bir `reason` bildirdiğinde (`previous_attempt_failed`, `no_api_key`) gösterge
+durup sebep yazılıyor (`enrichmentStalledMessage`); sebepsiz `queued` — yani iş
+gerçekten sırasını bekliyorken — "hazırlanıyor" doğru olduğu için değişmedi.
+
+**Ölü işler SQL ile geri kuyruğa alınabiliyor** ve bu, kullanıcının kaybettiği
+özetleri geri getiren tek hamle: `update private.ai_jobs set status='queued',
+attempt_count=0, available_at=now(), lease_token=null, leased_until=null where
+status='failed'`. `last_error_code` bilerek korunuyor — kesilme kaçışı
+(`enrichment.ts`) bir önceki hatanın `output_truncated` olmasına bakıyor.
+Ölçüldü: 22 ölü işten 12'si ilk 15 dakikada `ready` oldu, biri (184 karakterlik
+görsel alt-yazısı) yeniden öldü — ki doğrusu o.
+
+### React Query'nin izlenen özellikleri — iki ölçüm
+
+İkisi de yukarıdaki düzeltmeyi yazarken çıktı ve ikisi de sessizce yanlış
+davranıyordu.
+
+- **`dataUpdateCount` `QueryState`'te duruyor, `useQuery`'nin döndürdüğü nesnede
+  değil** (kurulu `@tanstack/query-core` tiplerinde ölçüldü: `QueryState`'te var,
+  `QueryObserverBaseResult`'ta yok). Client'tan okunabiliyor ama **izlenen bir
+  özellik olmadığı için değiştiğinde render tetiklemiyor** — ondan türetilen bir
+  bayrak hiçbir zaman dönmüyor. Yoklama sayacına dayanan "yoklama bitti mi"
+  bayrağı tam olarak böyle çalışmadı.
+- **Sonucu yaymak (`{...query}`) her alana abone olmaktır.** İzlenen özellikler
+  hangi alanı okursanız ona abone ediyor; yaymak bütün getter'ları okuyor,
+  dolayısıyla optimizasyonu kapatıp fazladan render üretiyor. Görünür sonucu:
+  yoklama bitiminde bir kez yazılması gereken uyarı iki kez yazıldı ve mevcut
+  "warns once" testi kırmızı verdi. `Object.assign(query, …)` hedefi okumadığı
+  için aboneliği bozmuyor — ama yukarıdaki madde yüzünden o da çözüm değildi.
+
+Sonuçta sayaç hiç kullanılmadı: "iş öldü" bilgisi zaten sunucudan ilk cevapta
+`previous_attempt_failed` olarak geliyor, ve "şu an gerçekten deniyor muyuz"
+sorusunun cevabı `isFetching`. **Türetilecek bir durum ararken önce elde olanı
+sayın** — sayaç, olmayan bir soruna yazılmış bir mekanizmaydı.
