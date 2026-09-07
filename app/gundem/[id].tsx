@@ -90,9 +90,9 @@ export default function GundemArticleRoute() {
   /*
     `queued` iki farklı şey demek ve ayıran tek şey `reason`:
 
-      reason yok  → iş gerçekten sırasını bekliyor. Worker iki dakikada bir en
-                    fazla 3 iş alıyor (saatte 90) ve günlük tavan 200, yani
-                    beklemek uzun sürebilir ama gelecek. "Hazırlanıyor" doğru.
+      reason yok  → iş gerçekten sırasını bekliyor; worker iki dakikada bir
+                    koşuyor. Beklemek uzun sürebilir ama gelecek, o yüzden
+                    "hazırlanıyor" doğru.
       reason var  → sunucu neden ilerlemediğini söylüyor: `previous_attempt_failed`
                     (denemeleri tükendi, kendiliğinden bir daha denenmeyecek) ya
                     da `no_api_key`. Burada dönen bir gösterge yalan.

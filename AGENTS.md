@@ -827,26 +827,48 @@ it belongs here. **A mistake made twice has earned a line in this file.**
   bakan biri hangi sürümün canlıda olduğunu göremezdi. Sürüm bir ürün kararı,
   sayaç değil.
 
-### "Çeviri geç geliyor / hiç gelmiyor" raporundan — sunucunun dört tavanı
+### "Çeviri geç geliyor / hiç gelmiyor" raporundan
 
-Cihazdan gelen soru şuydu: *"API key rate limitine mi takılıyor? İki tane var,
-farklı kaynaklardan, takılmaması gerek."* Cevap hayır, ve neden hayır olduğu
-`Akadirr1/follow-ai` kaynağında yazıyor. **Sunucu sözleşmesini tahmin etmeyin,
-kaynağı okuyun** — bu defterde zaten bir kez `summary_tr`/`bullets` olarak
-yaşandı.
+**Bu bölüm bir kez yanlış yazıldı ve canlı veri düzeltti.** Önce yalnızca kaynak
+kodu okunarak "sebep rate limit değil, sunucunun dört tavanı" denmişti. Sonra
+Supabase MCP bağlanınca ölçüldü ve tablo bunun tersini söyledi. Kaynak okumak
+mekanizmayı verir, **hangi mekanizmanın gerçekten tetiklendiğini vermez** —
+onun için üretim verisi gerekiyor. Aşağıdakiler ölçülmüş hâli.
 
-- **İki sağlayıcı anahtarı yalnızca `retryable` hatada işe yarıyor.**
-  `_shared/ai-provider.ts` `withFallback`: primary başarısız olursa ikinci
-  sağlayıcı **sadece** hata retryable ise deneniyor. 429 tam da bunun için
-  (yorumu açıkça söylüyor). Ama `refusal`, `auth`, `bad_request` ve **her
-  `schema_*`** non-retryable — ikinci anahtar hiç görülmüyor. Yani "iki key var"
-  varsayımı yarı doğru, ve yanlış olan yarısı asıl başarısızlık sınıfını kapsıyor.
-- **Asıl darboğaz sağlayıcı limiti değil, sunucunun kendi tavanları.** Dördü
-  birden: cron `*/2 * * * *` × `max_jobs: 3` = **saatte 90 makale** (global,
-  tüm kullanıcılar); `AI_DAILY_CAP_DEFAULT = 200`/gün (dolunca worker
-  `skipped:'daily_cap'` deyip hiçbir şey işlemiyor); şema ihlalinde kalıcı ölüm;
-  çıktı iki kez kesilirse (`truncatedTwice`) iş ölü. İki API anahtarı bunların
-  hiçbirine dokunmuyor.
+Ölçüm anı: 22 ölü iş, `private.ai_jobs where status='failed'`:
+
+| `last_error_code` | adet | ort. gövde |
+|---|---|---|
+| `rate_limited` | **13** | 1257 karakter |
+| `output_truncated` | 6 | **139 karakter** |
+| `server_error` | 1 | 164 |
+| `schema_summary_wrong_length` | 1 | 141 |
+| `schema_summary_item_too_long` | 1 | 166 |
+
+- **Kullanıcının hipotezi doğruydu: hız limiti birinci sebep.** 22 ölümün 13'ü
+  `rate_limited`, hepsi 5 denemeyi tüketmiş. "Sebep rate limit değil" demek
+  yanlıştı.
+- **İkinci anahtar kurulu ve çalışıyor.** Log satırı bunu yazıyor:
+  `"provider":"gemini","fallback":"nvidia"`. Vault'ta iki anahtar da var. Yani
+  429'da NVIDIA deneniyor — ve yine de 13 iş öldüyse ya ikisi birden dolmuştu ya
+  da NVIDIA de reddetti. `withFallback` her iki taraf da düşünce **primary'nin**
+  kodunu yazıyor, o yüzden satırdaki `rate_limited` "yalnızca Gemini doldu"
+  demek değil.
+- **Ama failover'ın kapsamadığı bir sınıf var:** `refusal`, `auth`,
+  `bad_request` ve **her `schema_*`** non-retryable, ikinci sağlayıcıya hiç
+  gitmiyor (`_shared/ai-provider.ts` `withFallback`).
+- **`output_truncated` uzun makalede değil, EN KISA makalelerde çıkıyor.** Bu,
+  ilk okumada tam ters tahmin edilmişti. Altı işin ortalama gövdesi 139, en
+  büyüğü 191 karakter — ve bir kısmı düz metin bile değil, görsel alt-yazısı
+  (*"Collage of images created by Google Pics, with the text…"*). 89 karakterlik
+  bir alt-yazıdan üç ayrı özet maddesi + tam çeviri istemek imkânsıza yakın;
+  model çıktı bütçesini bu işe harcayıp `finishReason: MAX_TOKENS` ile dönüyor.
+  İki `schema_*` hatası da aynı sınıf (141 ve 166 karakter).
+- **Gözlemlenmedi: `AI_DAILY_CAP` ve iş hızı tavanı hiç devreye girmemiş.**
+  Kod bunları taşıyor (`max_jobs: 3` × iki dakikada bir = saatte 90;
+  `AI_DAILY_CAP_DEFAULT = 200`) ama ölçüm anında kuyrukta **sıfır** bekleyen iş
+  vardı ve toplam `ready` 139'du — yani tavanlara yaklaşılmamış bile. Koddaki
+  bir sınırı "darboğaz" ilan etmeden önce ona değilip değinilmediğine bakın.
 - **Çeviri ve özet tek çağrı, tek şema — biri giderse ikisi de gidiyor.**
   `_shared/schemas.ts`: makale dili `tr` değilse model çeviriyi vermek
   **zorunda**, vermezse `translation_missing_for_foreign_article`. Dil de
@@ -863,9 +885,18 @@ yaşandı.
 
 Uygulamanın kaldıracı yine yalnızca **ne göstereceği**: teşhis zaten
 `console.warn`'a yazılıyordu ve bir release derlemesinin konsolu yok, yani
-kullanıcıya ulaşan tek şey sonsuza kadar dönen bir göstergeydi. Artık gösterge
-yalnızca gerçekten bir istek uçuştayken dönüyor, ve durduğunda sunucunun
-`reason`'ı ekrana yazılıyor (`enrichmentStalledMessage`).
+kullanıcıya ulaşan tek şey sonsuza kadar dönen bir göstergeydi. Artık sunucu
+bir `reason` bildirdiğinde (`previous_attempt_failed`, `no_api_key`) gösterge
+durup sebep yazılıyor (`enrichmentStalledMessage`); sebepsiz `queued` — yani iş
+gerçekten sırasını bekliyorken — "hazırlanıyor" doğru olduğu için değişmedi.
+
+**Ölü işler SQL ile geri kuyruğa alınabiliyor** ve bu, kullanıcının kaybettiği
+özetleri geri getiren tek hamle: `update private.ai_jobs set status='queued',
+attempt_count=0, available_at=now(), lease_token=null, leased_until=null where
+status='failed'`. `last_error_code` bilerek korunuyor — kesilme kaçışı
+(`enrichment.ts`) bir önceki hatanın `output_truncated` olmasına bakıyor.
+Ölçüldü: 22 ölü işten 12'si ilk 15 dakikada `ready` oldu, biri (184 karakterlik
+görsel alt-yazısı) yeniden öldü — ki doğrusu o.
 
 ### React Query'nin izlenen özellikleri — iki ölçüm
 
