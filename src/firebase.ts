@@ -14,7 +14,7 @@ import {
 } from 'firebase/firestore';
 
 import type { ClubEvent } from './data';
-import type { Raffle } from './raffleSchema';
+import { isRaffle, type Raffle } from './raffleSchema';
 
 import { FIREBASE_SETUP_HINT, firebaseConfig, isFirebaseConfigured } from './firebaseConfig';
 
@@ -127,7 +127,11 @@ export async function fetchContent(): Promise<{
 
   return {
     events: eventsSnap.docs.map((d) => ({ id: d.id, ...d.data() }) as ClubEvent),
-    raffles: rafflesSnap.docs.map((d) => ({ eventId: d.id, ...d.data() }) as Raffle),
+    // İki şey birden: doküman kimliği HER ZAMAN kazanıyor (yayma sonda, yoksa
+    // dokümanın içindeki bir `eventId` alanı onu ezerdi), ve geçerli olmayan
+    // tanımlar düşüyor — var olan boş bir doküman normal bir etkinliği
+    // çekilişe çevirmesin diye. Gerekçe `isRaffle`'ın başında.
+    raffles: rafflesSnap.docs.map((d) => ({ ...d.data(), eventId: d.id })).filter(isRaffle),
     registered,
   };
 }
