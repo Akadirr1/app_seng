@@ -74,7 +74,8 @@ import {
   pushLogId,
 } from '../src/pushPolicy';
 import { resolvePort } from './port';
-import { cookieHeader } from './session';
+import { csvCell } from './csv';
+import { SESSION_SECONDS, cookieHeader, issueToken, loginLimiter, verifyToken } from './session';
 import { archiveList, esc, eventForm, loginPage, page, raffleForm, winnersForm } from './views';
 
 const PORT = resolvePort(process.env);
@@ -200,8 +201,7 @@ function readCookie(req: Request): string | null {
 }
 
 function authed(req: Request): boolean {
-  const token = readCookie(req);
-  return !!token && token === sign('ok');
+  return verifyToken(SECRET, readCookie(req));
 }
 
 function requireAuth(req: Request, res: Response, next: NextFunction) {
@@ -214,14 +214,27 @@ app.get('/login', (req, res) => {
   res.type('html').send(loginPage());
 });
 
+/** Parola denemesi sınırı — bkz. `loginLimiter`. Süreç içi; yeniden başlatınca sıfırlanır. */
+const attempts = loginLimiter();
+
 app.post('/login', (req, res) => {
+  const ip = req.ip ?? '';
+  const locked = attempts.lockedFor(ip);
+  if (locked > 0) {
+    return res
+      .status(429)
+      .type('html')
+      .send(loginPage(`Çok fazla yanlış deneme. ${Math.ceil(locked / 60_000)} dakika sonra tekrar deneyin.`));
+  }
   const given = String(req.body.password ?? '');
   if (!sameSecret(given, PASSWORD)) {
+    attempts.fail(ip);
     return res.status(401).type('html').send(loginPage('Parola yanlış.'));
   }
+  attempts.succeed(ip);
   res.setHeader(
     'Set-Cookie',
-    cookieHeader({ name: COOKIE, value: sign('ok'), secure: req.secure, maxAge: 43200 }),
+    cookieHeader({ name: COOKIE, value: issueToken(SECRET), secure: req.secure, maxAge: SESSION_SECONDS }),
   );
   res.redirect('/');
 });
@@ -724,11 +737,6 @@ app.get('/registrations.csv', async (req, res) => {
   const registrations = await loadRegistrations(eventId);
 
   const columns = ['eventId', 'code', 'name', 'studentNo', 'department', 'year', 'createdAt'];
-  const cell = (v: unknown) => {
-    if (v === null || v === undefined) return '';
-    const text = String(v);
-    return /[",\n\r]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
-  };
 
   const body = registrations
     .map((r) =>
@@ -738,7 +746,7 @@ app.get('/registrations.csv', async (req, res) => {
           if (c === 'createdAt' && value && typeof (value as any).toDate === 'function') {
             return (value as any).toDate().toISOString();
           }
-          return cell(value);
+          return csvCell(value);
         })
         .join(','),
     )
@@ -997,21 +1005,15 @@ app.get('/raffles/:eventId/entries.csv', async (req, res) => {
   const [raffle, entries] = await Promise.all([loadRaffle(eventId), loadEntries(eventId)]);
   if (!raffle) return res.redirect(`/raffles/${encodeURIComponent(eventId)}`);
 
-  const cell = (v: unknown) => {
-    if (v === null || v === undefined) return '';
-    const t = String(v);
-    return /[",\n\r]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t;
-  };
-
   const columns = csvColumns(raffle.fields);
   const body = entries
     .map((e) => {
       const created = e.createdAt?.toDate ? e.createdAt.toDate().toISOString() : '';
       return [
-        cell(e.entryId),
-        cell(eventId),
-        ...raffle.fields.map((f) => cell(e.values?.[f.key] ?? '')),
-        cell(created),
+        csvCell(e.entryId),
+        csvCell(eventId),
+        ...raffle.fields.map((f) => csvCell(e.values?.[f.key] ?? '')),
+        csvCell(created),
       ].join(',');
     })
     .join('\r\n');

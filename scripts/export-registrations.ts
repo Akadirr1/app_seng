@@ -17,6 +17,8 @@ import './load-env';
 import { cert, initializeApp } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 
+import { csvCell } from '../admin/csv';
+
 const COLUMNS = [
   // Firestore doküman kimliği: eventId__studentNo. İki dışa aktarım
   // birleştirilirken aynı kaydın iki kez sayılmaması buna bakarak anlaşılıyor.
@@ -51,12 +53,6 @@ function loadServiceAccount() {
   }
 }
 
-/** RFC 4180: tırnak, virgül veya satır sonu içeren alan tırnaklanır. */
-function csvCell(value: unknown): string {
-  if (value === null || value === undefined) return '';
-  const text = String(value);
-  return /[",\n\r]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
-}
 
 async function main() {
   initializeApp({ credential: cert(loadServiceAccount()) });
