@@ -68,10 +68,22 @@ graphify-out/
 #
 # Depoya ait skiller (native-core.md ve dört disiplin skili) bu kuralın
 # dışında: onlar versiyon kontrolünde ve orada kalıyorlar.
+#
+# Belirli skill adlarını tek tek saymak (`supabase`, `supabase-postgres-...`)
+# kendi kendini bozan bir liste: `npx skills add` her yeni skille yeni bir
+# sembolik bağ adı üretiyor, ve o ad listede yoksa `git status` yine
+# kirleniyor — tam olarak `usestrix/strix` eklenince olan buydu. Kural artık
+# depo skillerini adıyla `!` ile hariç tutuyor, geri kalan her şeyi (hangi
+# isimle gelirse gelsin) örtüyor.
 .agents/
 skills-lock.json
-.claude/skills/supabase
-.claude/skills/supabase-postgres-best-practices
+.claude/skills/*
+!.claude/skills/NOTICE.md
+!.claude/skills/native-core.md
+!.claude/skills/investigate-first
+!.claude/skills/lean-build
+!.claude/skills/surgical-patch
+!.claude/skills/verify-and-stop
 
 # generated native folders
 /ios
