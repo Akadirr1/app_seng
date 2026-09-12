@@ -146,6 +146,16 @@ export const PRIVACY_POLICY_URL = LEGAL_BASE
  */
 export const TERMS_URL = LEGAL_BASE ? `${LEGAL_BASE}/kosullar` : '';
 
+/**
+ * Panelin herkese açık kökü.
+ *
+ * `LEGAL_BASE` ile aynı değer ve bu bir tesadüf değil: yasal sayfalar da hesap
+ * uç noktaları da aynı panelde duruyor. İkinci bir değişken tanımlamak, ikisinin
+ * ayrışmasının tek sebebi olurdu (bu defterde `pushRecentSearch` maddesi aynı
+ * hatanın kaydı).
+ */
+export const PANEL_BASE_URL = LEGAL_BASE;
+
 /** Play'in şart koştuğu web'den hesap silme adresi. */
 export const ACCOUNT_DELETE_URL = LEGAL_BASE ? `${LEGAL_BASE}/hesap-sil` : '';
 

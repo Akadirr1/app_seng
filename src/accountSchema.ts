@@ -14,6 +14,8 @@ export type SignupInput = {
   /** `YYYY-MM-DD` — `<input type=date>` değil, uygulamada seçici var. */
   dogumTarihi: string;
   telefon: string;
+  /** Dokuz hane. `registrations` kuralı aynı biçimi zorluyor. */
+  ogrenciNo: string;
   parola: string;
   kvkkOnay: boolean;
   kosullarOnay: boolean;
@@ -32,6 +34,16 @@ export const MIN_AGE = 13;
 
 /** Parola en az bu kadar. Firebase varsayılanı 6; kısa parola bir tercih değil. */
 export const MIN_PASSWORD = 8;
+
+/**
+ * Öğrenci numarası biçimi — dokuz hane.
+ *
+ * Doğrulanan tek şey **biçim**: numaranın gerçekten o kişiye ait olduğunu
+ * soracak bir yer yok. Kulüp tarafında karşılığı, aynı numaranın ikinci bir
+ * hesapta kullanılamaması (`admin/claims.ts`); bir kişinin iki hesap açıp iki
+ * sertifika almasını engelleyen şey bu.
+ */
+export const STUDENT_NO_RE = /^[0-9]{9}$/;
 
 /**
  * Telefonu tek bir biçime indirger: `+90` + on hane.
@@ -138,6 +150,10 @@ export function validateSignup(input: SignupInput, today: Date): FieldErrors {
     errors.telefon = 'Telefon numarasını 5xx xxx xx xx biçiminde yazın.';
   }
 
+  if (!STUDENT_NO_RE.test(input.ogrenciNo.trim())) {
+    errors.ogrenciNo = 'Öğrenci numaran dokuz haneli olmalı.';
+  }
+
   if (input.parola.length < MIN_PASSWORD) {
     errors.parola = `Parola en az ${MIN_PASSWORD} karakter olmalı.`;
   }
@@ -194,6 +210,7 @@ export type Profile = {
   email: string;
   dogumTarihi: string;
   telefon: string;
+  ogrenciNo: string;
   /** Onayın kendisi değil, ne zaman verildiği: KVKK kanıt istiyor. */
   kvkkOnayAt: string;
   kosullarOnayAt: string;
@@ -211,6 +228,7 @@ export function toProfile(input: SignupInput, now: Date): Profile {
     email: normalizeEmail(input.email),
     dogumTarihi: input.dogumTarihi,
     telefon: normalizePhone(input.telefon)!,
+    ogrenciNo: input.ogrenciNo.trim(),
     kvkkOnayAt: at,
     kosullarOnayAt: at,
   };

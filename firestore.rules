@@ -210,8 +210,10 @@ service cloud.firestore {
         && request.resource.data.values.size() <= 12;
     }
 
-    // Hesap profilleri. Yalnızca sahibi okuyor ve yazıyor — ad, telefon ve
-    // doğum tarihi burada duruyor, yani sızması KVKK ihlali.
+    // Hesap profilleri. Yalnızca sahibi okuyor ve yazıyor — ad, telefon,
+    // doğum tarihi ve öğrenci numarası burada duruyor, yani sızması KVKK
+    // ihlali. Panel de yazıyor (doğrulama anında düzeltilen telefon/numara),
+    // ama Admin SDK bu kuralları hiç görmüyor.
     match /users/{uid} {
       allow read, write: if request.auth != null && request.auth.uid == uid;
     }
@@ -234,6 +236,33 @@ service cloud.firestore {
       // Güncelleme paneldeki Admin SDK'nın işi; istemci kendi talebini
       // "bitti" ilan edemesin.
       allow update, delete: if false;
+    }
+
+    // Doğrulama kodu ve teklik kayıtları — üçü de tamamen panelin.
+    //
+    // `emailOtp/{uid}` kodun hash'ini ve deneme sayısını taşıyor. İstemciye
+    // açılsaydı kullanıcı kendi deneme sayacını sıfırlayabilirdi, yani beş
+    // deneme sınırı diye bir şey kalmazdı.
+    //
+    // `phoneClaims/{telefon}` ve `studentClaims/{ogrenciNo}`: doküman
+    // kimliği değerin kendisi, yani teklik doküman kimliğiyle zorlanıyor —
+    // `registrations`'taki `eventId__studentNo` ile aynı kalıp. Yazma
+    // panelde çünkü İKİSİ BİRDEN ya da hiçbiri olmak zorunda (bkz.
+    // admin/claims.ts); iki ayrı istemci yazması atomik değil ve yarıda kalan
+    // hâli kimsenin sahiplenmediği bir kayıt bırakıyor.
+    //
+    // Okuma kapalı: telefon numarası ve öğrenci numarası kişisel veri, ve
+    // liste hâlinde okunabilmeleri doğrudan bir sızıntı. Aşağıdaki catch-all
+    // zaten kapatırdı; açıkça yazılmalarının sebebi bir gün "istemci de
+    // yazsın" diyen birinin neden yazmaması gerektiğini burada görmesi.
+    match /emailOtp/{uid} {
+      allow read, write: if false;
+    }
+    match /phoneClaims/{telefon} {
+      allow read, write: if false;
+    }
+    match /studentClaims/{ogrenciNo} {
+      allow read, write: if false;
     }
 
     // Bildirim otomasyonunun defterleri. Yalnızca panel (Admin SDK) yazıyor;

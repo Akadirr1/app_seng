@@ -94,6 +94,15 @@ graph queries first (`graphify query`, `path`, `explain`), file scans second.**
   everything and burn tokens.
 - **Do not run workflows or deep research** unless asked for by name.
 - **Do not publish artifacts.**
+- **Commit'ler ve PR'lar depo sahibinin adına gidiyor.** `Co-Authored-By: Claude`
+  ve `Claude-Session:` satırları **eklenmeyecek**; git yazarı da konteynerin
+  varsayılanı (`Claude <noreply@anthropic.com>`) değil, deponun sahibi olacak.
+  Konteyner her oturumda sıfırlandığı için ilk commit'ten önce ayarlayın:
+  `git config user.name Akadirr1 && git config user.email akadirr41@gmail.com`.
+- **Force push gerekiyorsa ÖNCE söyleyin.** Geçmişi yeniden yazmak (yazar
+  değiştirmek dâhil) SHA'ları değiştiriyor ve karşı taraf `git pull` dediğinde
+  "ıraksak dallar" hatası alıyor. Bir kez uyarısız yapıldı; kurtarma komutu
+  `git reset --hard origin/<dal>` ama bunu önceden bilmek gerekiyor.
 - **Do not work around the environment's network policy.** If something is unreachable,
   say it is unreachable. Never assert an outcome you did not observe.
 - **Keys:** only publishable/anon keys reach the app; service-role and Supabase secret
@@ -106,6 +115,34 @@ graph queries first (`graphify query`, `path`, `explain`), file scans second.**
   you add a check, break the thing it guards and watch it go red before trusting it.
 - Add `check:*` scripts to `package.json` when the first regression appears, not before,
   and start with the assertion that catches that regression.
+
+## Dağıtım yüzeyleri — her değişiklik bunlardan birine düşüyor
+
+Bu depo **tek bir şey yayınlamıyor**, dört ayrı yere dağıtılıyor, ve bir
+değişikliğin hangisine düştüğü koda bakınca belli olmuyor. Operatör yanlış
+yerde ararsa "yaptım ama çalışmıyor" diyor — bu defterde aynı sınıfta üç kayıt
+zaten var (yayınlanmamış kurallar, draft kalan Play sürümü, deploy edilmemiş
+panel).
+
+**Kural: kod değiştiren her cevap, hangi yüzeye dokunduğunu ve o yüzeyin ne
+istediğini yazacak.** Dokunulmayan yüzeyler de "gerekmiyor" diye geçilecek;
+sessizlik "gerekmiyor" anlamına gelmiyor.
+
+| Yüzey | Dosyalar | Ne gerekiyor | Kullanıcıya ne zaman ulaşır |
+|---|---|---|---|
+| **Mobil uygulama** | `app/`, `src/`, `app.json`, uygulama bağımlılıkları | EAS derlemesi + mağaza sürümü | Mağaza yayınlayınca — güncelleme almayan kullanıcıda eski sürüm kalır |
+| **Panel (backend)** | `admin/`, `nixpacks.toml`, panel ortam değişkenleri | Coolify'da **redeploy** | Deploy biter bitmez |
+| **Firestore kuralları** | `firestore.rules` | `npm run rules:deploy` | Yayınlanır yayınlanmaz — **deploy'dan bağımsız** |
+| **Yalnızca depo** | `docs/`, `scripts/check-*`, `AGENTS.md`, testler | hiçbir şey | hiç |
+
+İki tuzak, ikisi de yaşandı:
+
+- **Ortam değişkeni değiştirmek de deploy istiyor.** Coolify'da değeri yazıp
+  kaydetmek koşan konteyneri değiştirmiyor; `process.env` süreç başlarken
+  okunuyor. Panel açılış satırında hangi modda olduğunu yazıyor, oraya bakın.
+- **Kurallar deploy'a binmiyor.** `firestore.rules` panelle birlikte gitmiyor,
+  Firestore onu projeden okuyor. Panel deploy edilmiş olması kuralların
+  yayınlandığı anlamına gelmez.
 
 ## Load-bearing decisions — the why log
 
@@ -1089,3 +1126,118 @@ sayın** — sayaç, olmayan bir soruna yazılmış bir mekanizmaydı.
   satırdaki **ayrı parça** sayısını sayıyor: `████████` bir, `█ . ████ . █` üç.
   Bir şekli koruyacak iddia, o şeklin bozulduğunda değişen şeyi ölçmeli;
   genişlik burada o şey değildi.
+
+### Doğrulama postası, teklik ve OTP
+
+- **Firebase Auth'un doğrulama postasının spam'e düşmesi şablon sorunu
+  değil, alan adı sorunu.** Gönderen `noreply@<proje>.firebaseapp.com` ve o
+  alan adı kulübün değil, dolayısıyla `kouseng.com` için yayımlanan SPF/DKIM
+  ile hizalanmıyor. Şablonu güzelleştirmek bunu düzeltmiyor; gönderenin
+  değişmesi gerekiyor.
+  **DOĞRULANMADI:** "Console → Authentication → Templates → SMTP settings ile
+  Firebase'in kendi postası da kulübün sunucusundan gönderilebiliyor" diye iki
+  kez yazdım; Firebase'in özel e-posta işleyici belgesi yalnızca *action
+  handler* özelleştirmesinden bahsediyor, SMTP'den değil ve konsol buradan
+  görülemiyor. Parola sıfırlama hâlâ Firebase'den gidiyor; o postayı da kendi
+  alan adımızdan göndermenin kesin yolu, kodu OTP hattına taşımak.
+- **`emailVerified` yalnızca Firebase'in kendi bağlantısıyla ya da Admin SDK
+  ile değişiyor.** Kendi kodumuzla doğrulamanın tek yolu sunucuda
+  `updateUser(uid, {emailVerified:true})`. Ve istemcinin jetonu bayat kalıyor:
+  `reload()` + `getIdToken(true)` çağrılmazsa uygulama doğrulanmış hesabı
+  doğrulanmamış görmeye devam ediyor — belirti "doğruladım ama hâlâ
+  katılamıyorum".
+- **Doküman kimliği `uid` olmayan koleksiyon, silme yoklayıcısının listesine
+  giremiyor.** `phoneClaims/{telefon}` ve `studentClaims/{ogrenciNo}`
+  kimliklerini değerin kendisinden alıyor, yani ne `USER_DOC_COLLECTIONS`'a ne
+  de `uid` ile sorgulanan listeye uyuyorlar. Atlansaydı hesap silinmiş
+  görünür, ama aynı kişi bir daha kayıt olamazdı: numarası sonsuza kadar
+  kilitli kalırdı ve bunu kimse bir hata olarak bildirmezdi. Serbest bırakma
+  profil **okunduktan sonra, silinmeden önce** olmak zorunda — hangi değerler
+  olduğu yalnızca orada yazıyor.
+- **Tek bir hız sınırı iki işi görmüyor.** 60 saniyelik yeniden gönderim
+  beklemesi düğmeye üst üste basmayı engelliyor ama saatte 60 posta demek;
+  saatlik tavan olmadan biri başkasının kutusunu doldurabilir. İki sınır ayrı
+  sebeplerle var ve ikisi de gerekiyor.
+- **Doğrulamada sıra: önce kilit ve süre, sonra yanlış kod.** Tersi olsaydı
+  süresi dolmuş kodu giren kullanıcı "kod yanlış" görür ve doğru kodu aramaya
+  başlardı — oysa yapması gereken yeni kod istemek. Kontrol `check:panel`'de
+  ve sıra değiştirilince kırmızı verdiği ölçüldü.
+- **Çakışma kodu tüketmemeli, ve düzeltme aynı ekranda olmalı.** Telefon ya da
+  numara başkasındaysa kullanıcı onu değiştirmek zorunda, ama profili
+  düzenleyen bir ekran yok. Olmayan bir ekrana yönlendirmek hesabı kalıcı
+  olarak doğrulanamaz bırakırdı; doğrulama ekranı çakışan alanı kendisi açıyor
+  ve kod hâlâ geçerli olduğu için tek posta yetiyor.
+- **React 19 efektleri geliştirme kipinde iki kez çalıştırıyor**, ve "ekran
+  açılınca kod iste" bunu doğrudan hissediyor: ikinci çağrı sunucudan "60
+  saniye bekle" yiyor ve kullanıcıya hata gibi görünüyor. `useRef` ile bir kez.
+- **İşlem (transaction) burada süs değil.** İki sahiplenme ayrı ayrı
+  yazılsaydı telefon tutup numara çakıştığında geride kimsenin sahiplenmediği
+  bir kayıt kalırdı. `check:panel` bunu ayrıca sınıyor: çakışan istek hiçbir
+  şey yazmamalı.
+- **Bir kural, ancak zorlayabildiği şeyi iddia edebilir.** Öğrenci numarasının
+  tekliği zorlanıyor; numaranın gerçekten o kişiye ait olduğu **zorlanmıyor**,
+  çünkü soracak bir kaynak yok. Ad ise hiç denetlenmiyor — "iki parça, 5–80
+  karakter" bir biçim kuralı ve `asdf qwer` her denetimden geçer. Uydurma bir
+  denetim yazmak olmayan bir güvenceyi varmış gibi göstermek olurdu; yerine
+  geçen şey maliyet, denetim değil: numara tek olduğu için troll ad kendi
+  numarasının üstünde kalıyor.
+- **İşlemsel postanın spam puanı gövdeden de geliyor.** Düz metin karşılığı
+  olmayan posta puan alıyor; yalnızca görselden oluşan gövde de öyle, üstelik
+  çoğu istemci görseli engellediği için posta boş bir çerçeve olarak açılıyor.
+  Kod postasında bağlantı da yok: hem bağlantı itibarına takılmıyor hem de
+  kullanıcıya "bu tür postalardaki bağlantılara basma" demeyi mümkün kılıyor.
+  Web fontu (Press Start 2P dâhil) postada çalışmıyor, palet metinle taşınıyor.
+- **Bir takma addan gönderemezsiniz — `smtp.gmail.com` From'u kimlik
+  doğrulanan hesaba çeviriyor.** Google'ın kendi belgesi düz yazıyor: standart
+  Gmail SMTP'de "From adresi kimlik doğrulanan hesapla aynı olmalı", röle
+  (`smtp-relay.gmail.com`) ise alan adındaki herhangi bir adrese izin veriyor.
+  Yani `SMTP_USER=info@`, `MAIL_FROM=noreply@` yazmak tek başına yetmiyor;
+  takma ad `info@` hesabında "farklı adresten gönder" olarak tanımlı değilse
+  posta `info@`'dan gidiyor. **Hiçbir yerel kontrol bunu göremez** — gönderilen
+  başlık doğru, değiştiren taraf Google. Tek kanıt gelen postanın gönderen
+  satırı, o yüzden panele test postası düğmesi kondu (`/bildirimler`).
+- **Boş bir `MAIL_FROM` sessizce giriş hesabına düşüyor.** Belgelenmiş ve
+  istenen davranış, ama görünmez olursa bütün postalar yanlış adresten gider ve
+  kimse fark etmez. Panel hem açılışta hem `/bildirimler` sayfasında hangi
+  adresten göndereceğini yazıyor; `check:panel` de `MAIL_FROM`'un `SMTP_USER`'ı
+  ezdiğini doğruluyor (ezmeyen hâli kırmızı verdi).
+- **Kod gönderme uç noktası gövdeden e-posta almıyor, kimlik jetonundan
+  alıyor.** `POST /sendOtp {email}` biçimindeki bir tasarım, kulübün alan
+  adından herkese posta gönderilebilen bir kapı olurdu — hız sınırı da
+  kurbanın adresine değil isteği atana bağlanamazdı. `verifyIdToken`'dan gelen
+  `uid` + `email` ile hem kurban seçilemiyor hem de sayaç doğru yere yazılıyor.
+- **Ortam raporu "panel" derken `scripts/`'i saymamalı.** `env:check` ilk
+  hâlinde `admin/` ile `scripts/`'i birlikte tarıyordu, ve `check-bundle` ile
+  `check-release` `EXPO_PUBLIC_AIGUNDEM_*` adlarını **pakette aramak için**
+  geçiriyor. Sonuç: rapor Coolify'a AI Gündem anahtarları girilmesi
+  gerekiyormuş gibi görünüyordu ve operatör "niye her şeyi iki kez giriyorum"
+  diye sordu — haklıydı, çünkü rapor yanlış söylüyordu. Gerçekte iki yere
+  birden girilen **tek** değer var (`EXPO_PUBLIC_FIREBASE_API_KEY`) ve rapor
+  artık onu adıyla işaretliyor. Bir aracın adı bir şeyi kapsıyor diye onu
+  taramaya katmayın; neyin dağıtıldığına bakın.
+- **200 tek başına başarı değil, ve `fetch` yönlendirmeyi sessizce takip
+  ediyor.** Uç noktayı tanımayan panel isteği `app.use(requireAuth)`'a düşürüp
+  `/login`'e yönlendiriyor; `fetch` oraya gidiyor ve elimize **200 + HTML**
+  geliyor. Gövdeye bakmayan istemci bunu "kod gönderildi" saydı: ekranda
+  "Kodu e-postana gönderdik" yazarken hiçbir posta gönderilmemişti, ve
+  `curl -i` olmadan bu ayırt edilemiyordu (cevap `302 … location: /login`).
+  Bu, defterdeki "tanınmayan gövdeyi veri saymayın" maddesinin ters yönü:
+  orada tanınmayan gövde veriyi ÇÖPE atıyordu, burada YOK olanı VAR sayıyor.
+  `cagir()` artık gövdenin JSON olduğunu ve `durum` taşıdığını şart koşuyor;
+  `src/__tests__/otp.test.ts` 200+HTML ve tanınmayan JSON için ayrı ayrı
+  kırmızı veriyor (eski hâl geri konup ölçüldü).
+- **Yalnızca hatayı yazan bir log, "hiç çalışmadı" gibi okunuyor.**
+  `/api/hesap/kod` başarılı gönderimde hiçbir şey yazmıyordu; kullanıcı "kod
+  gelmedi" dediğinde operatör loga bakıp **boş** buluyor ve bunu "istek
+  sunucuya hiç ulaşmadı" diye yorumluyor — oysa posta gönderilmiş de olabilir.
+  İki durumu ayıran tek şey başarı satırıydı ve o satır yoktu. Artık alıcı,
+  `accepted`, `rejected` ve zarf göndereni yazılıyor (kod YAZILMIYOR).
+- **`sendMail` alıcı reddedildiğinde fırlatmıyor.** SMTP sunucusu bağlantıyı
+  kabul edip tek tek alıcıları reddedebiliyor; nodemailer bunu `rejected`
+  dizisinde döndürüyor, istisna olarak değil. `accepted` boşken istemciye
+  "gönderildi" demek, kullanıcıyı hiç gelmeyecek bir postayı beklemeye
+  mahkûm ediyordu.
+- **Cloud Function bu projede bir seçenek değil.** Dışarıdan gelen her tasarım
+  önerisi OTP'yi bir Cloud Function'a koyuyor; deponun iki ayrı maddesi zaten
+  yazıyor: dağıtmak Blaze istiyor, proje Spark'ta. Panel (Express + Admin SDK)
+  o kutunun yerinde duruyor ve aynı işi yapıyor.

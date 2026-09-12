@@ -36,6 +36,7 @@ const BOS: SignupInput = {
   email: '',
   dogumTarihi: '',
   telefon: '',
+  ogrenciNo: '',
   parola: '',
   kvkkOnay: false,
   kosullarOnay: false,
@@ -71,7 +72,9 @@ export default function SignupRoute() {
     try {
       await signUp(form);
       await reloadProfile();
-      router.replace('/(tabs)/hesap');
+      // Doğrudan doğrulamaya: doğrulanmamış hesap etkinliğe katılamıyor, yani
+      // kullanıcıyı hesap sekmesine bırakmak yarıda kalmış bir iş bırakmak.
+      router.replace('/dogrula');
     } catch (err) {
       setHata(authErrorMessage(err));
     } finally {
@@ -146,6 +149,23 @@ export default function SignupRoute() {
                 {formatPhone(normalizePhone(form.telefon)!)} olarak kaydedilecek.
               </Txt>
             ) : null}
+          </Field>
+
+          <Field label="Öğrenci Numarası" error={errors.ogrenciNo}>
+            <Input
+              value={form.ogrenciNo}
+              onChangeText={(v) => set('ogrenciNo', digits(v, 9))}
+              placeholder="9 hane"
+              keyboardType="number-pad"
+              maxLength={9}
+              error={!!errors.ogrenciNo}
+            />
+            {/* Numaranın hesaba bağlanması e-posta doğrulandığı anda oluyor
+                (bkz. admin/claims.ts): bir numara tek hesapta kullanılabiliyor,
+                yani aynı kişi ikinci bir hesapla ikinci sertifika alamıyor. */}
+            <Txt size={12} color={colors.muted} style={{ marginTop: 6 }}>
+              Katılım sertifikana bu numara yazılacak.
+            </Txt>
           </Field>
 
           <Field label="Parola" error={errors.parola}>

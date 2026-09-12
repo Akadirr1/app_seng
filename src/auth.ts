@@ -16,7 +16,6 @@ import {
   initializeAuth,
   onAuthStateChanged,
   reauthenticateWithCredential,
-  sendEmailVerification,
   sendPasswordResetEmail,
   signInWithEmailAndPassword,
   signOut as fbSignOut,
@@ -98,7 +97,10 @@ export async function signUp(input: SignupInput, now = new Date()): Promise<User
     createdAt: serverTimestamp(),
   });
 
-  await sendEmailVerification(cred.user).catch(() => {});
+  // Firebase'in doğrulama postası BİLEREK gönderilmiyor: gönderen
+  // `noreply@<proje>.firebaseapp.com` ve o alan adı kulübün olmadığı için
+  // SPF/DKIM hizalanmıyor — posta spam'e düşüyor, cihazda böyle gözlendi.
+  // Kodu panel kulübün kendi adresinden gönderiyor (`src/otp.ts`).
   return cred.user;
 }
 
@@ -113,11 +115,6 @@ export function signOut(): Promise<void> {
 
 export function resetPassword(email: string): Promise<void> {
   return sendPasswordResetEmail(getAuthClient(), normalizeEmail(email));
-}
-
-export async function resendVerification(): Promise<void> {
-  const user = currentUser();
-  if (user) await sendEmailVerification(user);
 }
 
 /**

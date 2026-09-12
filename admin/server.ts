@@ -74,6 +74,9 @@ import {
   pushLogId,
 } from '../src/pushPolicy';
 import { startDeletionSweeper } from './deletion';
+import { registerAccountApi } from './accountApi';
+import { initMail, mailFrom, mailReady, sendMail } from './mail';
+import { otpMail } from './mailTemplate';
 import { deleteAccountPage, privacyPage, termsPage } from './legal';
 import { resolvePort } from './port';
 import { verifyPassword } from './webAuth';
@@ -114,6 +117,9 @@ function loadServiceAccount() {
 initializeApp({ credential: cert(loadServiceAccount() as unknown as ServiceAccount) });
 const db = getFirestore();
 
+/** Açılışta hangi SMTP ayarının eksik olduğu — panelin posta kartı bunu yazıyor. */
+let mailEksik: string[] = [];
+
 const app = express();
 // Coolify/Traefik gibi bir ters proxy arkasında HTTPS proxy'de sonlanıyor ve
 // uygulamaya istek düz HTTP olarak geliyor. Bu ayar olmadan `req.secure`
@@ -121,6 +127,9 @@ const app = express();
 // `1`: yalnızca en yakın proxy'ye güven — istemcinin uydurduğu başlığa değil.
 app.set('trust proxy', 1);
 app.use(express.urlencoded({ extended: false }));
+// Uygulamanın çağırdığı uç noktalar JSON konuşuyor. Sınır düşük: bu gövdeler
+// yalnızca bir kod ve iki numara taşıyor.
+app.use(express.json({ limit: '8kb' }));
 
 /**
  * Görsel yükleme. Bellekte tutuluyor: dosyalar küçültülüp Storage'a gidiyor,
@@ -289,6 +298,10 @@ app.post('/hesap-sil', async (req, res) => {
     );
   }
 });
+
+// Uygulamanın hesap uç noktaları. Kimliği yönetici parolası değil, çağıranın
+// Firebase kimlik jetonu belirliyor — bu yüzden giriş duvarının önünde.
+registerAccountApi(app, db);
 
 app.use(requireAuth);
 
@@ -868,9 +881,53 @@ app.get('/bildirimler', async (req, res) => {
       log: log as LogRow[],
       pending,
       categories,
+      mail: { ready: mailReady(), from: mailFrom(), eksik: mailEksik },
       notice: typeof req.query.sonuc === 'string' ? req.query.sonuc : undefined,
     }),
   );
+});
+
+/**
+ * Test postası.
+ *
+ * Var olma sebebi tek bir sessiz yanlış: kimlik doğrulaması `info@` ile
+ * yapılıp `MAIL_FROM` `noreply@` yazıldığında Google başlığı kendisi
+ * değiştirebiliyor, ve bunu hiçbir yerel kontrol göremez — yalnızca gelen
+ * postanın gönderen satırı söyler. Bunu denemek için gerçek bir hesap açıp
+ * kayıt akışını beklemek gerekiyordu.
+ */
+app.post('/bildirimler/posta-testi', async (req, res) => {
+  const to = String(req.body.to ?? '').trim();
+  if (!to) {
+    return res.redirect('/bildirimler?sonuc=' + encodeURIComponent('Adres yazın.'));
+  }
+  if (!mailReady()) {
+    return res.redirect(
+      '/bildirimler?sonuc=' +
+        encodeURIComponent('SMTP yapılandırılmamış — SMTP_HOST, SMTP_USER, SMTP_PASS gerekiyor.'),
+    );
+  }
+  try {
+    // Gerçek şablon gönderiliyor, ayrı bir "test" gövdesi değil: burada
+    // ölçülmek istenen şey postanın kendisi — ayrı bir gövde başka bir postayı
+    // sınardı ve spam kararı gövdeye de bakıyor.
+    const sonuc = await sendMail({ to, ...otpMail('000000', 10) });
+    res.redirect(
+      '/bildirimler?sonuc=' +
+        encodeURIComponent(
+          `Gönderildi → ${sonuc.accepted.join(', ') || to}. ` +
+            `Zarf göndereni: ${sonuc.envelopeFrom}. ` +
+            'Gelen postayı açıp GÖNDEREN satırına bakın — Google başlığı değiştirmiş olabilir.',
+        ),
+    );
+  } catch (err) {
+    res.redirect(
+      '/bildirimler?sonuc=' +
+        encodeURIComponent(
+          'Gönderilemedi: ' + (err instanceof Error ? err.message : String(err)),
+        ),
+    );
+  }
 });
 
 app.post('/bildirimler/test', async (req, res) => {
@@ -1136,6 +1193,28 @@ app.listen(PORT, () => {
       ? '[push] otomatik bildirim AÇIK. Kapatmak için ADMIN_AUTO_PUSH=off.'
       : '[push] otomatik bildirim KAPALI (ADMIN_AUTO_PUSH=off).',
   );
+  // Posta da açılışta söyleniyor, aynı gerekçeyle: yapılandırılmamış SMTP'nin
+  // tek belirtisi "kod gelmiyor" olurdu ve o, operatörün bakmadığı yerde kalır.
+  const posta = initMail(process.env);
+  mailEksik = posta.ok ? [] : posta.eksik;
+  console.log(
+    posta.ok
+      ? `[posta] SMTP hazır — gönderen: ${mailFrom()}`
+      : `[posta] SMTP YAPILANDIRILMAMIŞ (eksik: ${posta.eksik.join(', ')}). ` +
+        'Doğrulama kodu gönderilemez, hesaplar doğrulanamaz.',
+  );
+  // Web'den hesap silme Identity Toolkit'e gidiyor ve bu anahtarı istiyor
+  // (`admin/webAuth.ts`). Yerelde uygulama ile panel aynı `.env`'i okuduğu için
+  // hep tanımlı; sunucuda İKİ AYRI ORTAM var ve anahtar yalnızca EAS'a
+  // konursa panel onu hiç görmüyor. Belirtisi ancak bir kullanıcı hesabını
+  // silmeye çalıştığında ortaya çıkıyor — Play'in şart koştuğu sayfa.
+  if (!process.env.EXPO_PUBLIC_FIREBASE_API_KEY) {
+    console.error(
+      '[hesap-sil] EXPO_PUBLIC_FIREBASE_API_KEY panelin ortamında YOK. ' +
+        "Web'den hesap silme çalışmaz (Play şartı). EAS'taki değer panele " +
+        'geçmiyor; buraya da eklenmesi gerekiyor.',
+    );
+  }
   // Sessiz saatlerde biriken bildirimleri sabah gönderen zamanlayıcı.
   startPushFlusher(db);
   // Duyurular panelde yazılmıyor — kulübün sitesinde yazılıyor, o yüzden tek
