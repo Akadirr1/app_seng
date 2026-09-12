@@ -1063,3 +1063,18 @@ sayın** — sayaç, olmayan bir soruna yazılmış bir mekanizmaydı.
 - **React 19'da `ref` sıradan bir prop**, `forwardRef` gerekmiyor; ama paylaşılan
   `Input` bileşeninin tipinde yazılmazsa TS2322 veriyor. Hane dolunca sıradaki
   kutuya odaklanmak bunu kullanıyor.
+
+### Sekiz piksellik bir glif yolu okunarak değerlendirilemez
+
+- **Hesap ikonu istenmeyen bir siluet okuyordu ve bunu kullanıcı bildirdi.**
+  Yol olarak yazılınca makul görünüyordu: baş, boyun, omuz, gövde. Izgaraya
+  basılınca sorun apaçık — iki piksellik "boyun", altındaki tam genişlikteki
+  kütleyle birleşince başka bir şey okutuyor. **Bu deponun defterinde zaten
+  bir bildirim ikonu maddesi var** ("24dp'de gri bulamaç olur, tam çözünürlükte
+  yargılanamaz"); aynı ders, bu sefer ASCII ızgarada.
+- **Kural: iki geniş dolu satır arasında dar bir dolu satır bırakma.** Boyun
+  yerine **boş satır** kondu; baş ile omuz birbirine değmiyor. Boş satır kuralı
+  bozmuyor çünkü kural yalnızca dolu satırlara bakıyor.
+- Kontrol `src/__tests__/icons.test.ts`'te ve eski yol geri konunca iki testi
+  birden kırmızı verdi — ölçüldü. Bir glifi değerlendirmenin tek yolu onu
+  basmak: testteki `rowWidths` aynı ayrıştırmayı yapıyor.
