@@ -1,49 +1,74 @@
-# Giriş sistemi, QR yoklama, sertifika — araştırma ve plan
+# Giriş sistemi, QR yoklama, sertifika — son plan
 
-Uygulama App Store'da **girişsiz** yayında (1.1.2). Hedeflenen üç özellik: QR ile
-yoklama, QR ile çekilişe katılma, yoklamaya katılana dijital sertifika.
+Uygulama App Store'da **girişsiz** yayında (1.1.2). Hedef: hesap sistemi, ardından
+QR ile yoklama, QR ile çekilişe katılma ve katılana dijital sertifika.
 
 Bu belge iki şeyi ayırıyor: **mağazaların gerçekten şart koştuğu** (birincil
 kaynaktan doğrulandı) ile **bu deponun kodunda ölçülen** teknik gerçekler.
-Doğrulanmamış hiçbir şey buraya yazılmadı.
+Doğrulanmamış hiçbir şey buraya yazılmadı; ölçülemeyen yerler öyle işaretlendi.
 
 ---
 
-## 0. Önce itiraz: üç özelliğin hiçbiri giriş gerektirmiyor
+## 1. Verilmiş kararlar
 
-Talep "bunları yapmadan önce login lazım" şeklinde geldi. Kod bunu desteklemiyor:
+Bunlar tartışma değil, girdi. Planın geri kalanı bunların üstüne kuruldu.
 
-Kayıt akışı **zaten kimlik taşıyor**. `registrations/{eventId}__{studentNo}`
-dokümanı ad, öğrenci numarası, bölüm, sınıf ve bir `code` tutuyor; doküman
-kimliği bir öğrencinin aynı etkinliğe iki kez yazılmasını hâlihazırda
-engelliyor (bkz. AGENTS.md, "Bir doküman kimliği bir benzersizlik kuralı
-taşıyabilir"). Yoklamada cevaplanması gereken soru "bu kişi kim" değil, "bu
-kişi kayıtlı mı ve kapıdan geçti mi" — ikisinin de cevabı elde.
+| # | Karar | Sonucu |
+|---|---|---|
+| 1 | **E-posta alan adı kısıtı yok.** Herkes kayıt olabilir. | Öğrencilik doğrulaması e-postadan gelmiyor; yerine öğrenci numarası tekilliği + e-posta doğrulaması konuyor (§4). |
+| 2 | **Giriş yalnızca "Etkinliğe katıl" düğmesinde zorunlu.** | Takvim, arşiv, duyurular, AI Gündem girişsiz kalıyor. Guideline 5.1.1(v) ile birebir uyumlu (§3.2). |
+| 3 | **Profil bilgileri kayıt formuna otomatik akıyor.** Ad soyad, öğrenci numarası, e-posta bir kez girilir. | Form üç alan yerine onay ekranına iner; kimlik artık hesaba **bağlı** (§4). |
+| 4 | **Site yayınlanacak; hesap silme sayfası orada, girişin arkasında.** | Play'in web silme adresi şartı karşılanıyor (§3.4, §6). |
+| 5 | **Sıralama: önce hesap sistemi, sonra QR ve sertifika.** | QR akışı kayıt kaydının üstüne oturduğu için hesaplı kayıt önce geliyor. |
 
-Girişin gerçekte satın aldığı şey başka ve daha dar:
+Ayrıca iki soru cevapsız kaldığı için **öneri olarak karara bağlandı**, itiraz
+gelirse değişir:
 
-| Kazanım | Bugün ne oluyor |
-|---|---|
-| Kayıtlar cihaz değişince kaybolmuyor | Kayıtlar AsyncStorage'da; Firestore'a **yalnızca yazılıyor** (`allow read: if false`). Telefon değişti mi kayıt gitti. |
-| Çekilişte cihazlar arası tekillik | Şu an çekiliş katılımı **yalnızca aynı cihazda** engelleniyor (`makeEntryId` rastgele). AGENTS.md bunu zaten kurallar sayfasına yazmamanın gerekçesi olarak anıyor. |
-| Sertifikaya sonradan erişim | Sertifika yerel kalırsa uygulama silinince gider. |
-
-Yani doğru cümle "QR için login lazım" değil, **"kayıtların cihazdan bağımsız
-olması için login lazım"**. Bu meşru bir ürün kararı, ama sıralamayı değiştirir:
-QR yoklama ve sertifika **girişsiz de bugün yapılabilir**, giriş ise kendi
-başına ve kendi gerekçesiyle ele alınabilir.
-
-Aşağıdaki plan ikisini ayrı faz olarak veriyor. Yine de "önce login" denirse
-Faz 2 ve 3'ün sırası değiştirilir; teknik içerik aynı kalır.
+- **Mevcut kayıtlar göç ettirilmiyor.** Bugünkü kayıtların sahibi yok; öğrenci
+  numarasına bakıp sahiplendirmek, numarayı bilen herkese başkasının kaydını
+  verirdi. Eski kayıtlar yerelde kalır, yenileri `uid` taşır.
+- **Sertifikayı panel imzalar.** Üzerinde doğrulama kodu ve sitedeki
+  `/dogrula/<kod>` adresine giden bir QR olur.
 
 ---
 
-## 1. Apple ve Google gerçekte ne şart koşuyor
+## 2. Bu tasarım neyi güvence altına alıyor, neyi almıyor
 
-### 1.1 Sign in with Apple zorunlu değil — bir şartla
+Karar 3'ün gerekçesi "güvenlik üst düzey olur" idi. Doğru yönde, ama sınırını
+yazmadan geçmek yanlış olur.
 
-Yaygın inanışın aksine Apple, Apple hesabıyla girişi **her uygulamadan**
-istemiyor. Guideline 4.8'in birebir metni:
+**Kazanılan, gerçek:**
+
+- Kayıt artık anonim bir POST değil, **doğrulanmış e-postası olan bir hesabın**
+  işlemi. Bugün kurallar dokuz haneli herhangi bir numarayı kabul ediyor
+  (AGENTS.md'de "tasarımsal açık" diye kayıtlı); bundan sonra numara hesaba
+  bağlı olacak ve her hesap tek numara taşıyacak.
+- Bir öğrenci numarası **tek hesaba** kilitleniyor. İkinci bir hesap aynı
+  numarayı alamıyor, yani "başkasının numarasıyla kayıt" tek tıkla yapılamıyor.
+- Kayıtlar cihazdan bağımsız okunabiliyor; telefon değişince kaybolmuyor.
+- Çekilişte tekillik cihazda değil hesapta — bugün yalnızca aynı cihazda
+  engelleniyor.
+
+**Kazanılmayan, ve bunu bilerek kabul ediyoruz:**
+
+- **Öğrenci numarasının gerçekten o kişiye ait olduğunu hiçbir şey kanıtlamıyor.**
+  Alan adı kısıtı kaldırıldığı için elde kriptografik bir kanıt yok: ilk gelen
+  numarayı alır. Birinin başkasının numarasını "kapmasını" engelleyen şey
+  teknik değil sosyal — kulüp üyesini tanıyor ve panelden düzeltebiliyor.
+- Yani bu sistem **sahtekârlığı zorlaştırıyor, imkânsızlaştırmıyor.** Kabul
+  edilebilir: kapıda yoklamayı okutan görevli zaten orada ve sertifika
+  yoklamadan türüyor.
+
+Bu satırların burada olma sebebi, altı ay sonra "hani güvenlik üst düzeydi"
+sorusunun cevabının belgede durması.
+
+---
+
+## 3. Apple ve Google gerçekte ne şart koşuyor
+
+### 3.1 Sign in with Apple zorunlu değil — bir şartla
+
+Guideline 4.8'in birebir metni:
 
 > Apps that use a third-party or social login service (such as Facebook Login,
 > Google Sign-In, Log in with X, …) to set up or authenticate the user's primary
@@ -53,24 +78,16 @@ istemiyor. Guideline 4.8'in birebir metni:
 > Another login service is **not** required if:
 > * **Your app exclusively uses your company's own account setup and sign-in systems.**
 > * […]
-> * Your app is an education, enterprise, or business app that requires the user
->   to sign in with an existing education or enterprise account.
-> * […]
 
-Sonuç, ve bu planın en önemli kararı:
+Sonuç:
 
-- **Yalnızca kendi hesap sistemimizi sunarsak (e-posta + parola), Sign in with
-  Apple zorunlu değildir.**
-- **Google ile Giriş'i eklediğimiz an Sign in with Apple zorunlu hâle gelir.**
-  İkisi bir pakettir; "önce Google'ı koyalım, Apple'ı sonra" diye bir yol yok,
-  o hâliyle 4.8'den ret gelir.
+- **Yalnızca kendi hesap sistemimiz (e-posta + parola) → Sign in with Apple
+  zorunlu değil.**
+- **Google ile Giriş eklendiği an zorunlu hâle gelir.** İkisi bir pakettir;
+  "önce Google'ı koyalım, Apple'ı sonra" diye bir yol yok, o hâliyle 4.8'den ret
+  gelir. Bu yüzden sosyal giriş planda hiç yok.
 
-Üçüncü bir ihtimal: KOÜ'nün kendi hesabıyla giriş (education account
-istisnası). Kulüp üniversitenin kendisi olmadığı için bu istisnaya dayanmak
-risklidir; @kocaeli.edu.tr adresine e-posta doğrulaması ise "kendi hesap
-sistemimiz" kalır ve istisnaya hiç ihtiyaç duymaz.
-
-### 1.2 Apple girişi dayatmamızı da istemiyor
+### 3.2 Apple girişi dayatmamızı da istemiyor
 
 Guideline 5.1.1(v), birebir:
 
@@ -79,112 +96,240 @@ Guideline 5.1.1(v), birebir:
 > information to function, except when directly relevant to the core
 > functionality of the app or required by law.
 
-Yani **takvim, arşiv, duyurular ve AI Gündem giriş duvarının arkasına
-konulamaz.** Giriş yalnızca hesap gerektiren işlere (kayıt, çekiliş, sertifika)
-kapı olabilir. Bu, "açılışta login ekranı" tasarımını doğrudan eler.
+Karar 2 tam olarak bunu karşılıyor: içerik açık, **yalnızca katılma eylemi**
+hesap istiyor. "Açılışta login ekranı" tasarımı bu maddeyle elenmiş durumda.
 
-### 1.3 Hesap silme — Apple
+### 3.3 Hesap silme — Apple
 
-Hesap oluşturmayı destekleyen uygulama, silmeyi de sunmak zorunda (2022-06-30'dan
+Hesap oluşturmayı destekleyen uygulama silmeyi de sunmak zorunda (2022-06-30'dan
 beri). Apple'ın destek sayfasından doğrulananlar:
 
-- Silme **uygulama içinden başlatılabilmeli**, tipik olarak hesap ayarlarında.
-  "Bize e-posta atın" kabul edilmiyor; telefon/e-posta/destek akışı dayatmak
-  yalnızca yüksek düzenlemeye tabi sektörlere tanınmış.
+- Silme **uygulama içinden başlatılabilmeli**. "Bize e-posta atın" kabul
+  edilmiyor; destek akışı dayatmak yalnızca yüksek düzenlemeye tabi sektörlere
+  tanınmış.
 - Web sayfasına yönlendirme serbest, ama **doğrudan** o sayfaya link verilmeli.
 - **Tüm hesap kaydı ve ilişkili kişisel veri** silinmeli; "geçici olarak devre
   dışı bırakma yeterli değildir".
-- Silme **anında olmak zorunda değil**: süre kullanıcıya bildirilirse gecikmeli
-  silme kabul ediliyor, ama tamamlandığında **onay verilmeli**.
-- Yeniden kimlik doğrulama, e-posta/SMS kodu ve onay adımı serbest; "gereksiz
-  yere zorlaştıran" akışlar reddediliyor.
-- Yasa gereği saklanan veri varsa **kullanıcıya söylenmeli**.
-- Sign in with Apple kullanılıyorsa token'lar REST API ile **revoke** edilmeli.
-  (Bizde SIWA yoksa bu madde düşüyor.)
+- Silme anında olmak zorunda değil: süre bildirilirse gecikme kabul, ama
+  tamamlandığında **onay verilmeli**.
+- Yeniden kimlik doğrulama ve onay adımı serbest; "gereksiz yere zorlaştıran"
+  akışlar reddediliyor.
+- Yasa gereği saklanan veri varsa kullanıcıya söylenmeli.
 
-### 1.4 Hesap silme — Google Play
+### 3.4 Hesap silme — Google Play
 
-Play'in veri silme politikası Apple'dan **bir adım fazlasını** istiyor:
+Play bir adım fazlasını istiyor:
 
 - Uygulama içi silme yolu **ve** uygulamaya erişemeyenler için **web'den
-  erişilebilir bir silme adresi**. Adres çalışır olmalı, kapsamı doğru olmalı,
-  hesap silme sayfada **belirgin** olmalı ve uygulama/geliştirici adını
-  anmalı.
-- Bu adres Play Console'da **Data safety formunda** beyan ediliyor.
-- Güvenlik, dolandırıcılık önleme veya mevzuat gereği saklanan veri varsa
-  gizlilik politikasında anlatılmalı.
-- Tarihler geçti (2023-12-07 / 2024-05-31 uzatma); bugün **yürürlükte ve
-  yaptırımlı**.
+  erişilebilir bir silme adresi**. Adres çalışır olmalı, hesap silme sayfada
+  **belirgin** olmalı, uygulama/geliştirici adını anmalı.
+- Adres Play Console'da **Data safety formunda** beyan ediliyor.
+- Saklanan veri varsa gizlilik politikasında anlatılmalı.
+- Tarihler geçti (2023-12-07 / 2024-05-31); bugün yürürlükte ve yaptırımlı.
 
-**Bizim için pratik sonuç:** panel zaten Coolify'da bir alan adında HTTPS ile
-koşuyor. Silme sayfası oraya bir rota olarak eklenir; ayrı bir site gerekmiyor.
+Karar 4 bunu karşılıyor.
 
-### 1.5 Bunlara ek olarak bizim tarafta değişecekler
+### 3.5 Bizim tarafta ayrıca değişecekler
 
 - App Store **privacy nutrition label** ve Play **Data safety** formu: "Contact
-  Info → e-posta" ve "Identifiers → User ID" eklenecek. Hesap eklemek bu iki
-  formu yanlış hâle getirir, güncellenmemesi tek başına ret sebebi.
+  Info → e-posta", "Identifiers → User ID". Hesap eklemek bu iki formu yanlış
+  hâle getirir; güncellenmemesi tek başına ret sebebi.
 - Gizlilik politikası (`PRIVACY_POLICY_URL` uygulamada zaten var): hesap,
-  saklama süresi ve silme anlatılacak.
-- KVKK: ad ve öğrenci numarası kişisel veri; aydınlatma metni hesap kurulumunda
-  da gösterilmeli. Sertifikada ad yazacağı için sertifika üretimi de aydınlatma
-  kapsamına giriyor.
+  saklama süresi, silme.
+- KVKK: ad ve öğrenci numarası kişisel veri. Aydınlatma metni hesap kurulumunda
+  gösterilecek; sertifikada ad yazacağı için sertifika da kapsamda.
 
 ---
 
-## 2. Kimlik sağlayıcı kararı
+## 4. Kimlik ve profil modeli — "eşleştirme"
 
-**Karar: Firebase Auth, yalnızca e-posta + parola.**
+**Sağlayıcı: Firebase Auth, yalnızca e-posta + parola.** Doğrulandı: Spark
+(ücretsiz) planda çalışıyor, **50.000 aylık aktif kullanıcıya** kadar ücretsiz.
+Kulüp ölçeğinde tavan görünmüyor.
 
-Gerekçe, sırayla:
+Neden Firebase: korunacak veri Firestore'da ve tek güvenlik modeli Firestore
+kuralları; kurallar `request.auth.uid` konuşuyor. Supabase Auth depoda kurulu
+(AI Gündem için) ama Firestore'u açamaz — iki kimlik sistemi bakmak
+yapılmayacak.
 
-1. Korunacak veri Firestore'da ve **tek güvenlik modeli Firestore kuralları**.
-   Kurallar `request.auth.uid` konuşuyor; başka bir sağlayıcının JWT'si orada
-   hiçbir şey ifade etmiyor. Supabase Auth zaten depoda (`@supabase/supabase-js`
-   AI Gündem için kurulu) ama Firestore'u açamaz; köprü kurmak iki kimlik
-   sistemi bakmak demek — yapılmayacak.
-2. Google/Apple sosyal giriş eklenmediği sürece **Sign in with Apple borcu
-   doğmuyor** (bkz. 1.1). Bu, `expo-apple-authentication`, entitlement, prebuild
-   ve Android tarafında web akışı demek olan bir iş kaleminin tamamını siliyor.
-3. Parola sıfırlama Firebase'in **kendi barındırdığı** sayfayla çalışıyor;
-   uygulamaya derin bağlantı gerekmiyor.
+**E-posta bağlantılı (passwordless) giriş elendi:** Firebase Dynamic Links
+25 Ağustos 2025'te kapandı, e-posta bağlantısıyla giriş artık Universal/App
+Links kurulumu istiyor (alan adında `apple-app-site-association` ve
+`assetlinks.json`, associated-domains entitlement, prebuild). Parolayı
+kaldırmanın bedeli bu; şimdilik değmez.
 
-**E-posta bağlantılı (passwordless) giriş bilerek elendi.** Firebase Dynamic
-Links **25 Ağustos 2025'te kapandı**; e-posta bağlantısıyla giriş artık
-Universal Links / App Links kurulumu istiyor — alan adında `apple-app-site-association`
-ve `assetlinks.json` barındırmak, associated-domains entitlement'ı, prebuild
-yapılandırması. Parolayı ortadan kaldırmanın bedeli bu; şimdilik değmez.
+### 4.1 Koleksiyonlar
 
-**Anonim giriş bir ara adım olarak değerli:** UI'ı hiç değiştirmeden
-`request.auth.uid != null` şartını kurallara sokar ve AGENTS.md'de "tasarımsal
-açık" diye kayıtlı kayıt-spam'ini daraltır. Faz 1'e alındı.
+```
+users/{uid}
+  email, adSoyad, studentNo, createdAt
 
-**App Check ayrıca yapılmalı ve giriş onun yerine geçmez.** Spam'in gerçek
-cevabı App Check; ücretsiz ve girişten bağımsız.
+studentNumbers/{studentNo}        ← numara→hesap kilidi, içeriği tek alan
+  uid
+
+registrations/{eventId}__{studentNo}    ← doküman kimliği bugünkü hâliyle kalıyor
+  uid  ←  YENİ
+  regId, seatId, eventId, code, name, studentNo, department, year, createdAt
+```
+
+`studentNumbers` ayrı bir koleksiyon çünkü **bir doküman kimliği, hiçbir
+sorgunun taşıyamayacağı bir benzersizlik kuralı taşıyabiliyor** — bu depo aynı
+numarayı kayıtlarda zaten bu yöntemle kullanıyor (AGENTS.md). Numara profile
+gömülü kalsaydı iki hesabın aynı numarayı taşımasını hiçbir şey engelleyemezdi.
+
+### 4.2 Akış
+
+1. **Kayıt ol:** e-posta + parola + ad soyad + öğrenci numarası. Tek ekran.
+2. `sendEmailVerification` gönderilir. E-posta doğrulanmadan katılma açılmaz.
+3. `studentNumbers/{no}` oluşturulur. Numara doluysa istemci "bu numara başka
+   bir hesapta kayıtlı" der; çözümü panelden.
+4. **Etkinliğe katıl:** form açılmıyor, **onay ekranı** açılıyor — ad, numara,
+   bölüm, sınıf profilden geliyor. Kullanıcı yalnızca bölüm/sınıf gibi
+   etkinliğe özgü alanı düzeltip onaylıyor.
+5. Yazma bugünkü batch'in aynısı; üstüne `uid` alanı ve kurallarda eşleşme
+   şartı.
+
+Bölüm ve sınıf da profile alınabilir; ilk kayıttan sonra profile yazılıp
+sonrakilerde varsayılan gelmesi en ucuzu (kullanıcı yılda bir sınıf
+değiştiriyor).
+
+### 4.3 Kurallar (şekil)
+
+```
+match /users/{uid} {
+  allow read, write: if request.auth.uid == uid;      // yalnızca kendi profili
+}
+
+match /studentNumbers/{no} {
+  allow read: if false;                                // numara listesi sızmasın
+  allow create: if request.auth != null
+                && request.auth.token.email_verified
+                && request.resource.data.keys().hasOnly(['uid'])
+                && request.resource.data.uid == request.auth.uid;
+  allow update, delete: if false;                      // kilit kalıcı, panel çözer
+}
+
+match /registrations/{regId} {
+  allow read: if resource.data.uid == request.auth.uid;   // YENİ: kendi kaydını okur
+  allow create: if request.auth != null
+                && request.auth.token.email_verified
+                && regId == request.resource.data.eventId + '__' + request.resource.data.studentNo
+                && request.resource.data.uid == request.auth.uid
+                && get(/databases/$(database)/documents/studentNumbers/$(request.resource.data.studentNo)).data.uid == request.auth.uid
+                && ( … bugünkü alan doğrulamaları aynen … );
+  allow update: if request.resource.data.diff(resource.data).affectedKeys().hasOnly(['createdAt'])
+                && resource.data.uid == request.auth.uid;
+}
+```
+
+Üç not:
+
+- `request.auth.token.email_verified` kurallarda **doğrudan var**; doğrulanmamış
+  e-postayı sunucu tarafında eleyen ücretsiz kaldıraç budur.
+- Kuraldaki `get()` her değerlendirmede bir doküman okuması demek. Kulüp
+  ölçeğinde önemsiz, ama ücretsiz değil — bilinerek.
+- `allow read` ilk kez açılıyor. Bugün `if false`; kayıtların cihazdan bağımsız
+  olmasının tek yolu bu ve `uid` eşleşmesiyle dar tutuluyor.
+
+**Kurallar depoda dururken hiçbir şey yapmıyor** — `npm run rules:deploy`
+gerekiyor. Bu, bu deponun en pahalı dersi (AGENTS.md).
 
 ---
 
-## 3. Ölçülen teknik tuzaklar
+## 5. QR yoklama, çekiliş, sertifika
 
-Hepsi bu depoda, kurulu sürümlerle ölçüldü. Tahmin değil.
+### 5.1 Tarayıcı görevlide olmalı, öğrencide değil
 
-### 3.1 `firebase/auth` React Native'de yanlış derlemeye çözülüyor
+İki model var:
 
-`firebase` 12.17.1'in `./auth` ihracat haritasında **`react-native` koşulu
-yok**:
+**(A) Etkinlik QR'ı ekranda, öğrenci okutur.** Kod fotoğraflanıp paylaşılır ve
+salonda olmayan herkes yoklamaya girer. Kapatmak için kodun 30 saniyede bir
+dönmesi gerekir, **ama doğrulayacak yer yok**: Firestore kuralları HMAC
+hesaplayamaz, Cloud Functions da yok (§7.2).
+
+**(B) Öğrencinin QR'ı telefonunda, görevli okutur. ← seçilen**
+QR, kaydın `seatId`'sini taşır (kimlikte öğrenci numarası geçtiği için doküman
+kimliği değil — bu ayrım depoda zaten var). Görevli paneli telefonunda açar,
+kamerayla okutur, panel Admin SDK ile yoklamayı yazar.
+
+(B)'nin üstünlüğü:
+
+- Paylaşma sorunu yok; tarayıcı görevlide.
+- Uygulamaya kamera izni ve yeni native modül **girmiyor**. QR çizmek saf hesap.
+- Yeni Firestore kuralı yok — yazan taraf Admin SDK, kuralları görmüyor.
+- Blaze gerekmiyor.
+
+Bedeli: görevlinin panelin açık olduğu bir telefonu olmalı; kamera HTTPS
+istiyor, panel zaten HTTPS'te.
+
+### 5.2 Çekiliş ayrı bir QR akışı değil
+
+Okutulan katılımcı yoklamaya girer; çekiliş katılımı yoklamadan türer. "Geldi"
+ile "çekilişe katıldı" aynı olay olduğunda ikinci bir mekanizma yazmaya gerek
+yok. Çekilişin kendine özgü form alanları varsa (bugünkü `raffles` tanımı) form
+uygulamada doldurulmaya devam eder, QR yalnızca gelişi işaretler.
+
+Hesap geldiği için çekiliş tekilliği artık **cihazda değil hesapta**: katılım
+kimliği `eventId__uid` olur ve ikinci katılım var olan dokümana düşer.
+
+### 5.3 Sertifika
+
+Yoklama kaydından türer, panel üretir. Teslim: uygulamada sertifika ekranı +
+sitede `/dogrula/<kod>` doğrulama sayfası. Görsel gerekiyorsa `sharp` zaten
+kurulu (SVG → PNG). **PDF yazılmayacak**, kulüp basılabilir dosya isteyene
+kadar.
+
+---
+
+## 6. Hesap silme mimarisi
+
+Üç parça, ikisi zaten var.
+
+**Uygulama içi (Apple şartı):** Ayarlar → "Hesabımı sil" → yeniden kimlik
+doğrulama → ne silineceğinin listesi → onay.
+
+**Web (Play şartı):** sitede **statik bir sayfa** yeter. Firebase Auth web
+SDK'sıyla giriş yapılır, aynı silme talebi yazılır. Sunucu rotası, oturum
+yönetimi, yeni backend gerekmiyor — bu yüzden panele değil siteye konuyor.
+
+**Temizlik (panel):** `deletionRequests/{uid}` dokümanı bir yoklayıcı tarafından
+işlenir; Admin SDK `users/{uid}`, kayıtlar, çekiliş katılımları, yoklamalar,
+sertifikalar, `studentNumbers/{no}` ve `devices` kayıtlarını siler. Panelde
+zaten iki yoklayıcı çalışıyor (`startPushFlusher`, `startAnnouncementPoller`);
+bu üçüncüsü, aynı desen.
+
+**Onay nasıl veriliyor** (Apple "tamamlandığında onay" istiyor, elimizde e-posta
+gönderen bir altyapı yok): istemci silme talebinden sonra **oturumu açık
+tutarak** talebin durumunu izler; panel veriyi silip `status: done` yazar,
+istemci onayı gösterir ve **en son** `deleteUser()` ile kendi Auth kaydını
+siler. Kullanıcı uygulamayı kapatırsa panel bir zaman aşımından sonra Auth
+kaydını kendisi siler.
+
+Sıralama önemli: Auth kaydı **en sona** kalmalı, yoksa istemci kendi talebinin
+bittiğini okuyamaz.
+
+---
+
+## 7. Ölçülen teknik tuzaklar
+
+Hepsi bu depoda, kurulu sürümlerle ölçüldü.
+
+### 7.1 `firebase/auth` React Native'de yanlış derlemeye çözülüyor
+
+`firebase` 12.17.1'in `./auth` ihracat haritasında **`react-native` koşulu yok**:
 
 ```
 "./auth": { "types": …, "node": {…}, "browser": {…}, "default": … }
 ```
 
-Metro bu yüzden **browser** derlemesini alıyor. Browser derlemesinin varsayılan
-kalıcılığı `browserLocalPersistence`, yani `localStorage` — React Native'de yok.
-Sonuç: **oturum bellekte kalır ve uygulama kapanınca düşer.** Kullanıcı her
-açılışta yeniden giriş yapar ve bu bir hata olarak değil "uygulama beni
-unutuyor" diye bildirilir.
+Metro bu yüzden **browser** derlemesini alıyor. Onun varsayılan kalıcılığı
+`browserLocalPersistence`, yani `localStorage` — React Native'de yok. Sonuç:
+**oturum bellekte kalır ve uygulama kapanınca düşer.** Kullanıcı her açılışta
+yeniden giriş yapar; bu bir hata olarak değil "uygulama beni unutuyor" diye
+bildirilir.
 
 `getReactNativePersistence` yalnızca RN derlemesinde (`dist/rn/index.rn.d.ts`)
-tanımlı. İki import da bu depoda **typecheck'i kırıyor**, ölçüldü:
+tanımlı. İki import da bu depoda typecheck'i kırıyor, ölçüldü:
 
 ```
 firebase/auth   → error TS2305: has no exported member 'getReactNativePersistence'
@@ -192,139 +337,102 @@ firebase/auth   → error TS2305: has no exported member 'getReactNativePersiste
 ```
 
 Sebep: iki paketin de `exports` haritasında `"types"` anahtarı `"react-native"`
-koşulundan **önce** geliyor, TypeScript ilk eşleşeni alıyor ve paylaşılan
-`auth-public.d.ts`'e düşüyor. `customConditions: ["react-native"]` (Expo
-tabanından geliyor) bunu değiştirmiyor.
+koşulundan **önce** geliyor; TypeScript ilk eşleşeni alıp paylaşılan
+`auth-public.d.ts`'e düşüyor. Expo tabanından gelen
+`customConditions: ["react-native"]` bunu değiştirmiyor.
 
-→ **Faz 1'in ilk işi bir spike:** oturum gerçekten yeniden açılışta duruyor mu.
-Ölçülmeden hiçbir şey yazılmayacak. Elde üç yol var: RN derlemesini açıkça
-import etmek, `Persistence` sözleşmesini AsyncStorage üzerinde birkaç satırla
-kendimiz sağlamak, ya da `@react-native-firebase/auth`'a geçmek (native modül,
-prebuild ve `google-services.json` demek — son çare).
+→ **Faz 1'in ilk işi bu spike.** Oturum yeniden açılışta gerçekten duruyor mu,
+ölçülmeden UI yazılmayacak. Üç yol: RN derlemesini açıkça import etmek,
+`Persistence` sözleşmesini AsyncStorage üzerinde birkaç satırla kendimiz
+sağlamak, ya da `@react-native-firebase/auth` (native modül, prebuild ve
+`google-services.json` — son çare).
 
-Bu tuzağın "çalışıyor gibi görünüp sessizce bozulan" cinsten olduğunu not
-düşmek gerekiyor: geliştirme sırasında fark edilmez, çünkü Expo'da uygulama
-sürekli yeniden yükleniyor.
+Bu tuzak "çalışıyor gibi görünüp sessizce bozulan" cinsten: geliştirmede fark
+edilmez, çünkü uygulama sürekli yeniden yükleniyor.
 
-### 3.2 Cloud Functions yok — proje Spark planında
+### 7.2 Cloud Functions yok, Auth var
 
-AGENTS.md kayıtlı: Firebase Storage Blaze istediği için görseller Supabase'e
-taşındı. Aynı sebeple **Cloud Functions da yok.** Bu, "hesap silinince
-Firestore'daki verisini temizle" için standart çözümün (Auth `onDelete`
-tetikleyicisi) kullanılamayacağı anlamına geliyor.
+İkisi karıştırılıyor, ayrı ayrı doğrulandı:
 
-**Karşılığı zaten elimizde:** panel bir sunucu, Admin SDK'sı var ve içinde iki
-zamanlayıcı çalışıyor (`startPushFlusher`, `startAnnouncementPoller`). Silme
-üçüncü bir yoklayıcı olarak aynı desene giriyor.
+| | Spark (ücretsiz) planda |
+|---|---|
+| Firebase Auth (e-posta+parola) | **Çalışıyor.** 50.000 aylık aktif kullanıcıya kadar ücretsiz. |
+| Cloud Functions | **Çalışmıyor.** Firebase'in kendi belgesi: *"to deploy functions, your project must be on the Blaze pricing plan."* |
 
-### 3.3 Depoda olmayanlar
+(Firebase fiyatlandırma sayfasının özeti Functions'ı ücretsiz planda
+çalışıyormuş gibi okutuyor; `docs/functions/get-started` bunu net biçimde
+yalanlıyor. Doğru olan ikincisi.)
 
-QR için kamera/barkod paketi yok (`expo-camera` gerekecek — **ama aşağıdaki
-tasarımda uygulamaya değil, panele**), `expo-apple-authentication` yok (2.
-bölümün kararıyla gerekmiyor). `expo-crypto`, `expo-linking` ve AsyncStorage
-2.2.0 kurulu.
+Yani hesap silme için standart çözüm olan **Auth `onDelete` tetikleyicisi
+kullanılamıyor** — §6'daki panel yoklayıcısının sebebi bu, tercih değil.
 
----
+### 7.3 Depoda olmayanlar
 
-## 4. QR yoklama tasarımı — tarayıcı kimde olmalı
-
-İki model var ve seçim güvenliği belirliyor.
-
-**(A) Etkinlik QR'ı ekranda, öğrenci okutur.** Kapıda/projeksiyonda bir kod
-durur. Sorun: kodu fotoğraflayıp WhatsApp'a atan biri **salonda olmayan** herkesi
-yoklamaya sokar. Kapatmak için kodun 30 saniyede bir dönmesi (HMAC + zaman
-dilimi) gerekir, ve onu **doğrulayacak yer yok**: Firestore kuralları HMAC
-hesaplayamaz, Cloud Functions da yok. Doğrulama panele kayar, yani yazma
-"beklemede" girip sonradan onaylanır.
-
-**(B) Öğrencinin QR'ı telefonunda, görevli okutur. ← önerilen**
-Öğrencinin kaydı zaten bir `code` ve rastgele bir `seatId` taşıyor; QR bunu
-gösterir. Görevli paneli telefonunda açar, kamerayla okutur, panel Admin SDK ile
-yoklamayı yazar.
-
-(B) neden daha ucuz **ve** daha güvenli:
-
-- Paylaşma sorunu yok: tarayıcı görevlide, öğrenci salonda olmak zorunda.
-- Uygulamaya kamera izni, `expo-camera`, yeni bir native modül **girmiyor**.
-  QR çizmek saf hesap; okuma tarafı panelde tarayıcının kendi API'si.
-- Yeni Firestore kuralı yok — yazan taraf Admin SDK, kuralları hiç görmüyor.
-- Blaze gerekmiyor.
-- **Giriş gerekmiyor.** Bugünkü kayıt kaydıyla çalışır.
-
-Bedeli: görevlinin panelin açık olduğu bir telefonu olmalı ve kamera HTTPS
-istiyor — panel zaten HTTPS'te.
-
-**Çekilişe QR ile katılma bunun üstüne ayrı bir mekanizma değil:** okutulan
-katılımcı yoklamaya girer, çekiliş katılımı yoklamadan türer. "Etkinliğe geldi"
-ile "çekilişe katıldı" aynı olay olduğunda ikinci bir QR akışı yazmaya gerek
-kalmıyor. Çekilişin ayrı form alanları isteniyorsa (bugünkü `raffles` tanımı)
-form uygulamada doldurulmaya devam eder, QR yalnızca "geldi"yi işaretler.
-
-**Sertifika:** yoklama kaydından türer. En ucuz teslim, uygulamada bir sertifika
-ekranı + panelde `/dogrula/<kod>` doğrulama sayfası. Görsel üretimi gerekiyorsa
-`sharp` zaten kurulu (SVG → PNG); **PDF yazılmayacak**, kulüp basılabilir dosya
-isteyene kadar.
+Kamera/barkod paketi yok (§5.1 sayesinde uygulamaya da gerekmiyor),
+`expo-apple-authentication` yok (§3.1 sayesinde gerekmiyor). `expo-crypto`,
+`expo-linking` ve AsyncStorage 2.2.0 kurulu.
 
 ---
 
-## 5. Fazlar
+## 8. Fazlar
 
-Her fazın kendi durma koşulu ve **kırılıp kırmızı verdiği görülmüş** en az bir
-kontrolü var (AGENTS.md kuralı: iddia edilemeyen bir kontrol yeşil rapor eder).
+Her fazın durma koşulu ve **kırılıp kırmızı verdiği görülmüş** en az bir
+kontrolü var (AGENTS.md: iddia edilemeyen bir kontrol yeşil rapor eder).
 
-### Faz 0 — giriş olmadan yapılabilecekler (önerilen ilk iş)
-- App Check'i aç (ücretsiz, kayıt spam'ini daraltır).
-- Panel tarafında QR tarayıcı + `attendance` koleksiyonu (Admin SDK yazar).
-- Uygulamada kayıt kartında QR gösterimi.
-- Sertifika ekranı + panelde doğrulama rotası.
-- **Durma koşulu:** bir etkinlikte gerçek yoklama alınabiliyor.
-- **Kontrol:** `check:panel`'e yoklama yazımının aynı kaydı iki kez saymadığı
-  iddiası.
-
-### Faz 1 — kimlik altyapısı (UI yok)
-- Oturum kalıcılığı spike'ı (§3.1). **Bu bitmeden UI yazılmayacak.**
-- Firebase Auth e-posta + parola açılır; anonim giriş ara adım olarak.
-- Kurallara `request.auth.uid != null` girer; `registrations` ve `raffleEntries`
-  dokümanlarına `uid` alanı eklenir (kurallar alanı zorunlu kılar).
+### Faz 1 — kimlik altyapısı, UI yok
+- Oturum kalıcılığı spike'ı (§7.1). **Bitmeden UI yazılmaz.**
+- Firebase Auth açılır; `users` ve `studentNumbers` koleksiyonları.
+- Kurallar yazılır ve **yayınlanır** (`npm run rules:deploy`).
 - **Durma koşulu:** uygulama kapanıp açıldığında oturum duruyor, ölçülmüş.
-- **Kontrol:** `check:release`'e kural bloğu iddiası (`rulesBlock()` deseni
-  zaten var).
+- **Kontrol:** `check:release`'e kural bloğu iddiası — `rulesBlock()` deseni
+  zaten var; `email_verified` ve `uid` eşleşmesi silinince kırmızı vermeli.
 
-### Faz 2 — giriş ve hesap ekranı
-- Kayıt ol / giriş / parola sıfırlama. **Girişsiz gezinme korunur** (§1.2):
-  kapı yalnızca kayıt, çekiliş ve sertifikada.
-- Ayarlarda "Hesabımı sil" — uygulama içinden başlatılır, yeniden kimlik
-  doğrulama ister, süre bildirir, bittiğinde onay gösterir (§1.3).
-- Panelde silme yoklayıcısı (§3.2) + Play için web silme sayfası (§1.4).
-- Store formları ve gizlilik politikası güncellenir (§1.5).
-- **Durma koşulu:** silme talebi uçtan uca çalışıyor ve onay dönüyor.
-- **Kontrol:** silme yoklayıcısının kullanıcının **bütün** koleksiyonlarına
-  dokunduğu; bir koleksiyon listeden düşünce kırmızı vermeli.
+### Faz 2 — giriş, profil, eşleşmiş kayıt
+- Kayıt ol / giriş / parola sıfırlama / e-posta doğrulama.
+- Katılma düğmesi hesap istiyor; **gezinme açık kalıyor** (§3.2).
+- Kayıt formu onay ekranına iniyor, profilden doluyor (§4.2).
+- **Durma koşulu:** bir öğrenci hesap açıp etkinliğe katılabiliyor, ikinci bir
+  hesap aynı numarayı alamıyor.
+- **Kontrol:** `check:panel`'e saf doğrulama iddiaları (numara çakışması, profil
+  → form eşleşmesi).
 
-### Faz 3 — girişin gerçek kazanımı
-- Kayıtlar cihazdan bağımsız okunur (`registrations` için `uid` bazlı okuma
-  kuralı), çekilişte cihazlar arası tekillik, sertifikaya her cihazdan erişim.
-- **Durma koşulu:** telefon değiştiren öğrenci kayıtlarını görüyor.
+### Faz 3 — hesap silme (mağaza şartı)
+- Uygulama içi silme, sitede statik silme sayfası, panelde temizlik yoklayıcısı
+  (§6).
+- Store formları ve gizlilik politikası güncellenir (§3.5).
+- **Durma koşulu:** silme uçtan uca çalışıyor ve onay dönüyor.
+- **Kontrol:** yoklayıcının kullanıcının **bütün** koleksiyonlarına dokunduğu;
+  listeden bir koleksiyon düşünce kırmızı vermeli.
 
-### Yapılmayacaklar (şimdilik)
-- Google / Apple ile giriş — 4.8 borcunu doğurur (§1.1), kazanımı konfor.
-- E-posta bağlantılı giriş — Dynamic Links kapandı (§2).
+> Faz 3 biter bitmez sürüm çıkılabilir. Hesap sistemi mağaza açısından burada
+> tamamlanmış oluyor; QR olmadan da yayınlanabilir.
+
+### Faz 4 — QR yoklama ve çekiliş
+- Uygulamada kayıt kartında QR; panelde tarayıcı; `attendance` koleksiyonu.
+- Çekiliş katılımı `eventId__uid` ile hesap bazlı tekil.
+- **Durma koşulu:** gerçek bir etkinlikte yoklama alınabiliyor.
+- **Kontrol:** aynı katılımcının iki kez okutulması tek yoklama sayılıyor.
+
+### Faz 5 — sertifika
+- Panel üretimi, uygulamada ekran, sitede doğrulama sayfası.
+- **Durma koşulu:** yoklamaya giren biri sertifikasını görüyor ve doğrulama
+  adresi onu tanıyor.
+
+### Yapılmayacaklar
+- Google / Apple ile giriş — 4.8 borcunu doğurur (§3.1).
+- E-posta bağlantılı giriş — Dynamic Links kapandı (§4).
 - PDF sertifika — istenene kadar.
-- Cloud Functions'a dayanan hiçbir tasarım — plan Blaze gerektirmiyor.
+- Cloud Functions'a dayanan hiçbir tasarım — Blaze gerektiriyor (§7.2).
+- Mevcut kayıtların göçü — §1.
 
 ---
 
-## 6. Karar bekleyen sorular
+## 9. Sürüm ve geri dönüş notu
 
-1. **Sıralama:** Faz 0 önce mi (QR bugün çalışır, login sonra), yoksa ısrar
-   edildiği gibi login önce mi? Teknik içerik değişmiyor, teslim süresi
-   değişiyor.
-2. **E-posta kısıtı:** yalnızca `@kocaeli.edu.tr` mi kabul edilecek? Öğrenciliği
-   doğrular ve çekilişi ciddi biçimde temizler; mezun/dışarıdan katılımcıyı
-   dışarıda bırakır.
-3. **Mevcut kayıtların göçü:** bugünkü kayıtların sahibi yok. Öğrenci numarasına
-   bakıp sahiplendirmek, numarayı bilen herkese başkasının kaydını verir —
-   **önerilmiyor**. Öneri: eski kayıtlar yerelde kalır, yeni olanlar `uid`
-   taşır, göç yapılmaz.
-4. **Sertifikayı kim imzalar:** doğrulama kodu panelde mi üretilir, yoksa
-   sertifika üzerinde kulüp imzası/QR'ı mı olacak?
+Hesap sistemi yayına çıkan bir uygulamaya giriyor. İki şey önceden kararlaştı:
+
+- **Mevcut kullanıcılar kırılmıyor:** gezinme girişsiz kaldığı için güncellemeyi
+  alan biri hiçbir şey kaybetmiyor. Yalnızca yeni kayıt hesap istiyor.
+- **`app.json` sürümü elle artırılacak.** `autoIncrement: true` yalnızca
+  build numarasını artırıyor, kullanıcıya görünen `version`'ı değil — bu depo
+  bunu bir kez yaşadı (AGENTS.md).
