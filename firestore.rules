@@ -238,6 +238,65 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
+    // ---------------------------------------------------------------- yoklama
+    //
+    // QR ekranda/afişte duruyor, öğrenci uygulamadan okutuyor. Kodun
+    // fotoğraflanıp paylaşılması KABUL EDİLMİŞ bir maliyet — kararın
+    // gerekçesi docs/qr-yoklama-plani.md §1'de. Şart olan tek şey okutmanın
+    // uygulamada kayıtlı bir hesapla çalışması.
+    //
+    // `eventQr/{eventId}` istemciye TAMAMEN kapalı. Jeton yine de kurala
+    // giriyor: kural değerlendirmesindeki `get()` çağrısı istemcinin okuma
+    // izninden GEÇMİYOR, yani jeton hiçbir zaman kabloya çıkmadan
+    // karşılaştırılabiliyor. Sunucu, fonksiyon ve Blaze gerektirmemesinin
+    // tek sebebi bu.
+    match /eventQr/{eventId} {
+      allow read, write: if false;
+    }
+
+    function qrTanimi(eventId) {
+      return get(/databases/$(database)/documents/eventQr/$(eventId)).data;
+    }
+
+    match /attendance/{id} {
+      // Kendi yoklamasını okuyabiliyor: ekran "katıldın" diyebilsin ve
+      // sertifika listesi kendi satırını bulabilsin. Başkasınınki kapalı —
+      // kimin hangi etkinliğe geldiği kişisel veri.
+      allow read: if request.auth != null && resource.data.uid == request.auth.uid;
+      allow delete: if false;
+
+      // Yeniden gönderim. Salonun interneti en yoğun anda en kötü ve gönderim
+      // yeniden deneniyor; ikinci deneme var olan dokümana düşüyor, yani bir
+      // *update*. Kapalı olsaydı o telefon kalıcı olarak reddedilirdi.
+      //
+      // Yalnızca `checkedInAt` değişebiliyor: panelin sonradan yazdığı
+      // sertifika alanlarına istemci dokunamasın.
+      allow update: if request.auth != null
+                    && resource.data.uid == request.auth.uid
+                    && request.resource.data.diff(resource.data)
+                         .affectedKeys().hasOnly(['checkedInAt']);
+
+      allow create: if request.auth != null
+        && request.resource.data.keys().hasOnly(['eventId', 'uid', 'token', 'checkedInAt'])
+        // Doküman kimliği birleşik: aynı hesap aynı etkinliğe ikinci kez
+        // yazamıyor. Sayaç yok, okuma yok, yarışacak bir şey yok — kayıtlardaki
+        // `eventId__studentNo` ile aynı kalıp.
+        && id == request.resource.data.eventId + '__' + request.auth.uid
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.eventId is string
+        && exists(/databases/$(database)/documents/events/$(request.resource.data.eventId))
+        && request.resource.data.checkedInAt is timestamp
+        // Jeton, istemcinin OKUYAMADIĞI dokümandan geliyor.
+        && request.resource.data.token == qrTanimi(request.resource.data.eventId).token
+        // Pencere: etkinliğin bir saat öncesinden o günün sonuna. Bitişte
+        // kapatmak, akşam bağlantıya kavuşan telefonu kalıcı olarak reddederdi.
+        && request.time >= qrTanimi(request.resource.data.eventId).opensAt
+        && request.time <= qrTanimi(request.resource.data.eventId).closesAt;
+    }
+    // KALAN AÇIK — bilinçli: bu kural "bu hesap pencere açıkken jetonu
+    // gönderdi" diyor, "bu kişi salondaydı" demiyor. Kodun paylaşılması
+    // engellenmiyor ve sertifikanın üstüne bundan fazlası yazılamaz.
+
     // Doğrulama kodu ve teklik kayıtları — üçü de tamamen panelin.
     //
     // `emailOtp/{uid}` kodun hash'ini ve deneme sayısını taşıyor. İstemciye

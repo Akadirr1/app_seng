@@ -18,4 +18,19 @@ module.exports = {
   preset: 'jest-expo',
   testMatch: ['**/src/**/__tests__/**/*.test.ts?(x)'],
   setupFiles: ['<rootDir>/jest.setup.js'],
+  /**
+   * `.claude/worktrees/` dışarıda.
+   *
+   * Ajan iş akışları izole çalışmak için orada geçici git worktree'leri
+   * açıyor; her biri deponun tam bir kopyası, yani `testMatch` onları da
+   * buluyor ve aynı testler ikinci kez, üstelik o worktree'nin YARIM KURULMUŞ
+   * `node_modules`'üyle koşuyor. Sonuç: kendi kodunuz yeşilken `npm test`
+   * kırmızı ve hata mesajı sizin dosyalarınızı gösteriyor. Bir kez tam olarak
+   * bu yaşandı.
+   *
+   * `modulePathIgnorePatterns` de gerekiyor: aksi hâlde haste map aynı paket
+   * adını iki kez görüp uyarı basıyor.
+   */
+  testPathIgnorePatterns: ['/node_modules/', '/\\.claude/worktrees/'],
+  modulePathIgnorePatterns: ['/\\.claude/worktrees/'],
 };

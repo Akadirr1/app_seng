@@ -57,6 +57,13 @@
           "icon": "./assets/notification-icon.png",
           "color": "#0389BC"
         }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "QR okutarak etkinlik yoklamasına katılman için kamera gerekiyor. Kamera görüntüsü hiçbir yere kaydedilmiyor.",
+          "recordAudioAndroid": false
+        }
       ]
     ],
     "experiments": {

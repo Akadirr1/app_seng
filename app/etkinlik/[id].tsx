@@ -1,7 +1,7 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { PhotoGallery } from '../../src/components/PhotoGallery';
@@ -184,6 +184,32 @@ export default function EventDetailRoute() {
               feragati çekiliş kartında görünmek zorunda. Bir kez tam olarak bu
               eksik olduğu için reddedildik. */}
           {raffle ? <RaffleNotice style={{ marginTop: 14 }} /> : null}
+
+          {/* Yoklama kartı yalnızca ETKİNLİĞİN KENDİ GÜNÜNDE çiziliyor.
+              Pencere zaten o gün açık (bir saat öncesinden gün sonuna), ve
+              düğmeyi bir ay önceden göstermek kullanıcıya yapamayacağı bir şey
+              teklif etmek olurdu. Karşılaştırma metin üzerinden: `startsAt`
+              +03:00 damgalı ve `todayLocal` da aynı kaydırmayı kullanıyor,
+              yani yurt dışındaki telefon günü kaydırmıyor. */}
+          {!past && event.startsAt.slice(0, 10) === todayLocal(new Date()) ? (
+            <View style={styles.yoklamaKarti}>
+              <Txt weight="bold" size={14.5} color={colors.text}>
+                Bugün bu etkinlik var
+              </Txt>
+              <Txt size={12.5} leading={1.55} color={colors.muted} style={{ marginTop: 5 }}>
+                Etkinlikteki QR kodunu okutarak yoklamana katıl. Katılım sertifikan
+                buradan çıkıyor.
+              </Txt>
+              <Pressable
+                onPress={() => router.push(`/qr?eventId=${event.id}`)}
+                style={{ paddingTop: 12 }}
+              >
+                <Txt weight="semibold" size={13} color={colors.blue500}>
+                  QR ile yoklama
+                </Txt>
+              </Pressable>
+            </View>
+          ) : null}
         </View>
 
         {/* Konuşmacı bloğunun dışında: şerit kenara kadar kayabilsin diye kendi
@@ -301,6 +327,14 @@ function initials(name: string) {
 }
 
 const styles = StyleSheet.create({
+  yoklamaKarti: {
+    marginTop: 14,
+    backgroundColor: colors.surface,
+    borderWidth: 1.5,
+    borderColor: colors.blue200,
+    borderRadius: radius.md,
+    padding: 16,
+  },
   winnerRow: {
     flexDirection: 'row',
     alignItems: 'center',

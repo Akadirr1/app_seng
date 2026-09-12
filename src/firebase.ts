@@ -76,6 +76,12 @@ export const COLLECTIONS = {
    * Functions bu projede yok (Blaze istiyor).
    */
   deletionRequests: 'deletionRequests',
+  /**
+   * Yoklama. Doküman kimliği `eventId__uid` — aynı hesap aynı etkinliğe ikinci
+   * kez yazamıyor ve bunu zorlayan şey bir sorgu değil, kimliğin kendisi.
+   * Sahibi kendi satırını okuyabiliyor; başkasınınki kapalı.
+   */
+  attendance: 'attendance',
 } as const;
 
 /** Firestore retries an unreachable backend forever, so reads get a deadline. */

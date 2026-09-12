@@ -559,6 +559,19 @@ export function eventForm(
     </div>
 
     ${
+      opts.editing
+        ? `<div class="card">
+             <h2 style="font-size:15px">Yoklama</h2>
+             <p class="hint" style="margin-top:0">
+               Etkinliğin QR kodu, yoklama penceresi ve katılım listesi.
+               ${archive ? 'Geçmiş etkinlikte de açılabiliyor: sertifika yoklamadan çıkıyor ve katılımcı elle işaretlenebiliyor.' : ''}
+             </p>
+             <a class="btn" href="/events/${esc(values.id ?? '')}/qr">QR ve yoklama</a>
+           </div>`
+        : ''
+    }
+
+    ${
       archive || opts.registered === undefined
         ? ''
         : `<div class="card">

@@ -453,6 +453,101 @@ check(
 );
 
 check(
+  'QR yoklama zinciri bağlı',
+  'Ekranın var olması ona gidilebildiği anlamına gelmiyor — bu depo aynı hatayı ' +
+    'giriş ekranlarında bir kez yaptı. Kopan bir halkanın belirtisi etkinlik günü ' +
+    '"okutamıyorum" olur ve sebebi hiçbir yerde görünmez.',
+  () => {
+    const strip = (src) => src.replace(/\/\*[\s\S]*?\*\/|\/\/.*/g, '');
+
+    if (!existsSync(join(root, 'app/qr.tsx'))) return 'app/qr.tsx yok';
+    if (!/name="qr"/.test(read('app/_layout.tsx'))) return 'qr rotası kök yığına kayıtlı değil';
+
+    const etkinlik = strip(read('app/etkinlik/[id].tsx'));
+    if (!/['"`]\/qr\?eventId=/.test(etkinlik)) {
+      return 'etkinlik ekranı QR yoklamaya bağlanmıyor';
+    }
+
+    // Kamera ekranı jetonu kuralın beklediği şekilde yazmalı; doğrudan
+    // Firestore'a yazan yer burası.
+    const yoklama = strip(read('src/attendance.ts'));
+    if (!/serverTimestamp\(\)/.test(yoklama)) return 'yoklama zaman damgasını sunucudan almıyor';
+    if (!/getDoc\(/.test(yoklama)) {
+      // Önce okumazsa, panelden elle işaretlenmiş katılımcının okutması
+      // kural tarafından reddedilir ve kullanıcı sebebini anlamaz.
+      return 'yoklama yazmadan önce mevcut kaydı okumuyor';
+    }
+    return null;
+  },
+);
+
+check(
+  'kamera izni mikrofon istemiyor',
+  'expo-camera eklentisinin varsayılanı Android’de RECORD_AUDIO izni ekliyor. ' +
+    'QR okumak için mikrofon istemek inceleme masasında açıklanması gereken bir şey, ' +
+    've bu depo izinleri zaten blockedPermissions ile budamış durumda.',
+  () => {
+    const app = json('app.json').expo;
+    const eklenti = (app.plugins || []).find((p) => Array.isArray(p) && p[0] === 'expo-camera');
+    if (!eklenti) return 'app.json expo-camera eklentisini kaydetmiyor';
+    if (eklenti[1]?.recordAudioAndroid !== false) {
+      return 'recordAudioAndroid false değil — Android mikrofon izni ister';
+    }
+    if (!eklenti[1]?.cameraPermission) return 'kamera izin metni yok — iOS bunu zorunlu tutuyor';
+    return null;
+  },
+);
+
+check(
+  'QR jetonu istemciye hiç gitmiyor',
+  'Tasarımın tamamı buna dayanıyor: jeton istemcinin OKUYAMADIĞI bir dokümanda ' +
+    'duruyor ve kural onu `get()` ile okuyup karşılaştırıyor. `eventQr` okumaya ' +
+    'açılırsa herkes jetonu çekip pencere içinde uzaktan yoklama verebilir.',
+  () => {
+    const qr = rulesBlock('eventQr');
+    if (!qr) return 'firestore.rules eventQr bloğunu tanımlamıyor';
+    if (!/allow read, write: if false;/.test(qr)) return 'eventQr istemciye kapalı değil';
+
+    const yoklama = rulesBlock('attendance');
+    if (!yoklama) return 'firestore.rules attendance bloğunu tanımlamıyor';
+    // Kural jetonu karşılaştırmazsa herkes uydurma jetonla yoklama yazar.
+    //
+    // Aranan şey `qrTanimi(` DEĞİL: o ad pencere satırlarında da geçiyor, ve
+    // yalnızca jeton karşılaştırması silindiğinde kontrol yeşil kalıyordu —
+    // ölçüldü. Bu deponun defterinde aynı tuzağın dört kaydı var. Aranan şey
+    // karşılaştırmanın kendisi.
+    if (!/data\.token == qrTanimi\([^)]*\)\.token/.test(yoklama)) {
+      return 'attendance kuralı eventQr jetonunu karşılaştırmıyor';
+    }
+    if (!/request\.time >=/.test(yoklama) || !/request\.time <=/.test(yoklama)) {
+      return 'attendance kuralı zaman penceresini uygulamıyor';
+    }
+    // Kimlik birleşik olmazsa aynı hesap aynı etkinliğe defalarca yazabilir.
+    if (!/request\.resource\.data\.eventId \+ '__' \+ request\.auth\.uid/.test(yoklama)) {
+      return 'attendance doküman kimliği etkinlik+kullanıcıdan türemiyor';
+    }
+    return null;
+  },
+);
+
+check(
+  'QR karşılama sayfası giriş istemiyor',
+  'Telefonun kendi kamerası QR’ı okuduğunda bu adrese geliyor ve okutan kişi ' +
+    'öğrenci — yönetici parolası yok. `requireAuth` sonrasına düşerse sayfa giriş ' +
+    'ekranına yönlendirir ve kullanıcı ne olduğunu anlamaz.',
+  () => {
+    const strip = (src) => src.replace(/\/\*[\s\S]*?\*\/|\/\/.*/g, '');
+    const server = strip(read('admin/server.ts'));
+    const guard = server.indexOf('app.use(requireAuth)');
+    if (guard < 0) return 'admin/server.ts requireAuth ara yazılımını hiç kurmuyor';
+    const at = server.indexOf("'/qr/:eventId/:token'");
+    if (at < 0) return 'admin/server.ts QR karşılama sayfasını sunmuyor';
+    if (at > guard) return 'QR karşılama sayfası requireAuth’tan SONRA kayıtlı';
+    return null;
+  },
+);
+
+check(
   'AI Gündem yapılandırması pakete gömülüyor',
   'Expo\u2019nun babel eklentisi `process.env.EXPO_PUBLIC_*` ifadesini ancak statik ' +
     'üye erişimi olarak GÖRÜRSE değeri pakete gömüyor. `process.env`\u2019i bir nesne ' +
