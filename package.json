@@ -78,6 +78,7 @@
     "check:html": "tsx scripts/check-html.ts",
     "check:raffle": "tsx scripts/check-raffle.ts",
     "check:panel": "tsx scripts/check-panel.ts",
+    "sertifika:onizle": "tsx scripts/preview-certificate.ts",
     "env:check": "tsx scripts/check-env.ts",
     "check:gundem": "tsx scripts/check-gundem.ts",
     "test": "jest",

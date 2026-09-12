@@ -44,6 +44,7 @@ import {
 import { readMailConfig } from '../admin/mail';
 import { otpMail } from '../admin/mailTemplate';
 import { claimIdentity } from '../admin/claims';
+import { adSinifi, certificateHtml } from '../admin/certificate';
 
 let failed = 0;
 function assert(name: string, condition: boolean, detail = '') {
@@ -699,6 +700,73 @@ void (async () => {
     // "bu tür postalardaki bağlantıya basma" tavsiyesiyle çelişirdi.
     assert('postada görsel yok', !/<img/i.test(mail.html));
     assert('postada http bağlantısı yok', !/href="https?:/i.test(mail.html));
+  }
+
+  // ----------------------------------------------- sertifika
+
+  {
+    const temel = {
+      tarih: '12 Mart 2026',
+      belgeNo: 'K7M2QX9R',
+      dogrulamaUrl: 'mobil.kouseng.com/sertifika/K7M2QX9R',
+      fontBase: './fonts',
+    };
+
+    // ASIL MESELE: ad ve etkinlik adı KULLANICIDAN geliyor. Kaçırılmazsa
+    // sertifika sayfasına kod sokulabilir — ve o sayfa herkese açık.
+    const kotu = certificateHtml({
+      ...temel,
+      adSoyad: '<script>alert(1)</script>',
+      etkinlik: '" onerror="alert(2)',
+    });
+    assert(
+      'sertifikada ad kaçırılıyor',
+      !/<script>alert\(1\)<\/script>/.test(kotu) && kotu.includes('&lt;script&gt;'),
+    );
+    assert('sertifikada etkinlik adı kaçırılıyor', !/onerror="alert\(2\)/.test(kotu));
+    assert(
+      'belge no ve doğrulama adresi kaçırılıyor',
+      !certificateHtml({ ...temel, adSoyad: 'A B', etkinlik: 'E', belgeNo: '<b>x' }).includes('<b>x'),
+    );
+
+    const normal = certificateHtml({ ...temel, adSoyad: 'Abdülkadir İvenç', etkinlik: 'Yapay Zekâ Atölyesi' });
+    assert('sertifika Türkçe karakterleri taşıyor', normal.includes('Abdülkadir İvenç'));
+    assert('sertifika A4 yatay', /@page\s*\{\s*size:\s*A4 landscape/.test(normal));
+    // Piksel font YALNIZCA etikette; gövdenin tamamı piksel fontla yazılırsa
+    // belge oyuncak gibi görünüyor ve deponun kendi kuralı da bunu yasaklıyor.
+    // `@font-face` tanımı hariç: piksel font YALNIZCA `.etiket` kuralında
+    // kullanılıyor olmalı. İlk yazılışında bu iddia `@font-face`'i de sayıyordu
+    // ve doğru kodda kırmızı veriyordu — ölçüldü.
+    const pikselKullanimi = normal
+      .split('@font-face')
+      .slice(1)
+      .map((blok) => blok.slice(blok.indexOf('}') + 1))
+      .join('')
+      .match(/font-family: 'Pixel'/g);
+    assert(
+      'piksel font yalnızca etikette',
+      (pikselKullanimi || []).length === 1,
+      `${(pikselKullanimi || []).length} yerde kullanılıyor`,
+    );
+
+    // Uzun ad çerçeveyi taşırırsa belge bozuk çıkar ve bunu ancak o adın sahibi
+    // görür — yani hiç görülmez. Punto kademesi uzunluğa göre iniyor.
+    //
+    // Sınırlar BASILARAK belirlendi, tahminle değil: 21 ve 34 karakterlik
+    // adlar tam puntoda ve bir kademe inikte çerçeveye sığıyor (biri tek, biri
+    // iki satır). İlk yazılışta bu iddia daha dar sınırlar bekliyordu ve
+    // KIRMIZI VERDİ — yanlış olan kod değil, beklentiydi.
+    assert('kısa ad tam punto', adSinifi('Ali Öz') === 'ad');
+    assert('21 karakter hâlâ tam punto', adSinifi('Ayşegül Nur Şahinoğlu') === 'ad');
+    assert(
+      '34 karakter bir kademe iniyor',
+      adSinifi('Muhammed Emin Küçükçelebi Oğulları') === 'ad uzun',
+    );
+    assert(
+      '40 karakter iki kademe iniyor',
+      adSinifi('Muhammed Emin Küçükçelebioğulları Yıldırım') === 'ad cokUzun',
+    );
+    assert('boşluklar kırpılıyor', adSinifi('   Ali Öz   ') === 'ad');
   }
 
   // ----------------------------------------------- teklik (claims)
