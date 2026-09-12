@@ -61,11 +61,13 @@ Check ayrı bir iş ve bu turda yok.
    (`refreshVerification` tam olarak bunun için yazılmıştı). Altı hane
    kullanıcıyı ekrandan hiç çıkarmıyor.
 
-**Değerlendirilip alınmayan kolay yol:** Firebase Auth'un kendi şablonlarına
-Workspace SMTP'si tanımlanabiliyor (Console → Authentication → Templates →
-SMTP settings). Gönderen alan adını düzeltirdi ve sıfır kod isterdi — ama
-(2) ve (3) yerinde kalırdı. **Yine de yapılmalı:** parola sıfırlama postası
-hâlâ Firebase'den gidiyor ve aynı spam sorununu yaşıyor. Bu, kod yazmadan
+**Doğrulanmamış bir kolay yol:** Firebase Auth'un kendi şablonlarına Workspace
+SMTP'si tanımlanabildiği iki kez yazıldı (Console → Authentication → Templates).
+Firebase'in özel e-posta işleyici belgesi yalnızca *action handler*
+özelleştirmesini anlatıyor, SMTP'yi değil, ve konsol bu depodan görülemiyor —
+yani böyle bir ayarın varlığı **burada doğrulanamıyor**. Konsolu açan kişi
+baksın: varsa sıfır kodla parola sıfırlama postasının gönderenini düzeltir,
+yoksa tek yol o akışı da OTP hattına taşımak (§7). Bu, kod yazmadan
 alınabilecek bir kazanç.
 
 ---

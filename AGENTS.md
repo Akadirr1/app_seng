@@ -94,6 +94,11 @@ graph queries first (`graphify query`, `path`, `explain`), file scans second.**
   everything and burn tokens.
 - **Do not run workflows or deep research** unless asked for by name.
 - **Do not publish artifacts.**
+- **Commit'ler ve PR'lar depo sahibinin adına gidiyor.** `Co-Authored-By: Claude`
+  ve `Claude-Session:` satırları **eklenmeyecek**; git yazarı da konteynerin
+  varsayılanı (`Claude <noreply@anthropic.com>`) değil, deponun sahibi olacak.
+  Konteyner her oturumda sıfırlandığı için ilk commit'ten önce ayarlayın:
+  `git config user.name Akadirr1 && git config user.email akadirr41@gmail.com`.
 - **Do not work around the environment's network policy.** If something is unreachable,
   say it is unreachable. Never assert an outcome you did not observe.
 - **Keys:** only publishable/anon keys reach the app; service-role and Supabase secret
@@ -1124,9 +1129,13 @@ sayın** — sayaç, olmayan bir soruna yazılmış bir mekanizmaydı.
   değil, alan adı sorunu.** Gönderen `noreply@<proje>.firebaseapp.com` ve o
   alan adı kulübün değil, dolayısıyla `kouseng.com` için yayımlanan SPF/DKIM
   ile hizalanmıyor. Şablonu güzelleştirmek bunu düzeltmiyor; gönderenin
-  değişmesi gerekiyor. (Console → Authentication → Templates → SMTP settings
-  ile Firebase'in kendi postası da kulübün sunucusundan gönderilebiliyor —
-  parola sıfırlama hâlâ oradan gittiği için bu ayar yine de yapılmalı.)
+  değişmesi gerekiyor.
+  **DOĞRULANMADI:** "Console → Authentication → Templates → SMTP settings ile
+  Firebase'in kendi postası da kulübün sunucusundan gönderilebiliyor" diye iki
+  kez yazdım; Firebase'in özel e-posta işleyici belgesi yalnızca *action
+  handler* özelleştirmesinden bahsediyor, SMTP'den değil ve konsol buradan
+  görülemiyor. Parola sıfırlama hâlâ Firebase'den gidiyor; o postayı da kendi
+  alan adımızdan göndermenin kesin yolu, kodu OTP hattına taşımak.
 - **`emailVerified` yalnızca Firebase'in kendi bağlantısıyla ya da Admin SDK
   ile değişiyor.** Kendi kodumuzla doğrulamanın tek yolu sunucuda
   `updateUser(uid, {emailVerified:true})`. Ve istemcinin jetonu bayat kalıyor:
