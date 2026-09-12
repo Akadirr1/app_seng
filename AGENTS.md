@@ -1005,3 +1005,37 @@ sayın** — sayaç, olmayan bir soruna yazılmış bir mekanizmaydı.
   kullanan herkesin kaydını reddeder. Yazılan `uid` yine de yazana ait olmak
   zorunda: kimliksiz kayıt serbest, **başkasının kimliğiyle** kayıt değil.
   Yeni sürüm yayıldıktan sonra zorunluya çevrilecek.
+
+### "Hesabım yok aq" — yazılmış ama bağlanmamış bir ekranın maliyeti
+
+- **Giriş ekranları eklendi, onlara giden kapı eklenmedi.** `/hesap`, `/giris`
+  ve `/kayit-ol` çalışır hâldeydi; uygulamada hiçbir şey oraya gitmiyordu.
+  Kayıt formundaki kapı dışında sisteme girişin yolu yoktu, yani kullanıcı
+  açısından özellik **yoktu**. Bu, bu defterdeki "bir ekranın bir hook'u
+  çağırdığını hiçbir birim testi göremez" maddesinin rota hâli: dosyanın var
+  olması, ona erişilebildiği anlamına gelmiyor. `check:release` artık hesap
+  sekmesinin giriş, kayıt, bildirim ayarları ve hesap silmeye bağlandığını
+  doğruluyor.
+- **Sekme çubuğu adları elle yazılmış bir liste.** Dosyası olmayan bir ad boş
+  bir sekme çiziyor ve dokununca hiçbir şey olmuyor — hata yok, log yok. Bir
+  ekranı yeniden adlandırıp listeyi güncellememek bunu sessizce üretiyor.
+  Kontrol her sekme adı için `app/(tabs)/<ad>.tsx` var mı diye bakıyor.
+- **Bildirim ayarları bir sekme değil, hesap ayarıydı.** Beş sekmeden biri
+  olması, uygulamanın günlük kullanımında hiç açılmayan bir ekrana kalıcı yer
+  ayırıyordu; asıl eksik olan "benim tarafım" sekmesiydi. Bildirimler artık
+  Hesabım → Ayarlar altında, ve üç ekranın başlığındaki zil düğmesi oraya
+  kısayol olarak duruyor.
+- **Hesap sekmesi giriş istemiyor, ve istememeli.** Guideline 5.1.1(v) hesap
+  tabanlı olmayan içeriği giriş duvarının arkasına koymayı yasaklıyor; üstelik
+  sekmedeki şeylerin çoğu gerçekten hesaba bağlı değil — kayıtlar cihazda,
+  bildirim tercihleri cihaza ait. Oturum yokken sekme bir duvar değil, neyin
+  kazanılacağını anlatan bir kart gösteriyor. `check:release` sekmenin
+  `/giris`'e yönlendirmediğini ayrıca doğruluyor.
+- **Hesap silme kendi ekranına taşındı.** Geri alınamayan bir işlem, ayarların
+  dibinde yanlışlıkla dokunulabilecek bir yerde durmamalı. Apple'ın "gereksiz
+  yere zorlaştırmayın" kuralı adım sayısını değil engelleri kastediyor; ayrı
+  ekran + parola + onay izin verilen doğrulama.
+- **Kayıt listesi geçmiş etkinlikleri de okumak zorunda.** `useContent().events`
+  yalnızca yaklaşanları veriyor (`splitByDate`), dolayısıyla olmuş bir
+  etkinliğin kaydı kartta başlık yerine ham kimliğini gösterirdi. Liste
+  `events` + `archive` üzerinden arıyor.

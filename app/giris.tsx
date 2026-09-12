@@ -31,7 +31,7 @@ export default function LoginRoute() {
     setBilgi(null);
     try {
       await signIn(email, parola);
-      router.replace(next ? (next as never) : '/hesap');
+      router.replace(next ? (next as never) : '/(tabs)/hesap');
     } catch (err) {
       setHata(authErrorMessage(err));
     } finally {

@@ -243,6 +243,44 @@ check(
 );
 
 check(
+  'her sekmenin bir rotası var',
+  'Sekme çubuğu adları elle yazılmış bir listeden geliyor; dosyası olmayan bir ad ' +
+    'boş bir sekme çiziyor ve dokununca hiçbir şey olmuyor. Bir ekranı yeniden ' +
+    'adlandırıp listeyi güncellemeyi unutmak bunu sessizce üretir.',
+  () => {
+    const layout = read('app/(tabs)/_layout.tsx');
+    const names = [...layout.matchAll(/\{\s*name:\s*'([^']+)'/g)].map((m) => m[1]);
+    if (!names.length) return 'sekme listesi okunamadı';
+    const eksik = names.filter((n) => !existsSync(join(root, `app/(tabs)/${n}.tsx`)));
+    return eksik.length ? `rotası olmayan sekme: ${eksik.join(', ')}` : null;
+  },
+);
+
+check(
+  'hesap sekmesi ve bildirim ayarları yerinde',
+  'Hesapla ilgili her şeyin (kayıtlar, bildirim ayarları, yasal metinler, çıkış, ' +
+    'hesap silme) tek bir yerden bulunabilmesi gerekiyor. Giriş ekranları yazıldı ' +
+    'ama onlara giden bir kapı yoktu: hesap ekranı vardı, hiçbir şey oraya ' +
+    'gitmiyordu. Bildirim ayarları sekmeden çıkarıldığı için de tek erişim yolu ' +
+    'artık bu sekme — bağlantı düşerse ayarlar erişilemez hâle gelir ve bu bir ' +
+    'hata vermez, sadece kaybolur.',
+  () => {
+    const hesap = read('app/(tabs)/hesap.tsx');
+    if (!/bildirim-ayarlari/.test(hesap)) return 'hesap sekmesi bildirim ayarlarına bağlanmıyor';
+    if (!/hesap-sil/.test(hesap)) return 'hesap sekmesinde hesap silme bağlantısı yok';
+    if (!/\/giris/.test(hesap) || !/kayit-ol/.test(hesap)) {
+      return 'hesap sekmesi giriş/kayıt ekranlarına bağlanmıyor';
+    }
+    // Apple 5.1.1(v): hesap tabanlı olmayan içerik giriş duvarının arkasına
+    // konulamıyor. Sekmenin kendisi oturum yokken de çizilmek zorunda.
+    if (/if \(!user\) return <Redirect/.test(hesap) || /router\.replace\('\/giris'\)/.test(hesap)) {
+      return 'hesap sekmesi oturum yokken giriş ekranına yönlendiriyor — sekme bir duvar olamaz';
+    }
+    return null;
+  },
+);
+
+check(
   'Firebase Auth React Native kalıcılığı elde',
   'Oturum kalıcılığı `getReactNativePersistence`e bağlı, ve o fonksiyon yalnızca ' +
     '@firebase/auth\u2019un React Native derlemesinde var. `firebase/auth`\u2019un varsayılan ' +

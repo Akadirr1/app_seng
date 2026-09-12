@@ -20,6 +20,9 @@ export const ICON = {
   search: 'M2 1h2v1h-2z M1 2h1v2h-1z M4 2h1v2h-1z M2 4h2v1h-2z M5 5h1v1h-1z M6 6h2v2h-2z',
   check:
     'M6 1h2v1h-2z M5 2h1v1h-1z M4 3h1v1h-1z M3 4h1v1h-1z M2 5h1v1h-1z M1 4h1v1h-1z M0 3h1v1h-1z M1 5h1v1h-1z',
+  // Büst: baş, omuz, gövde. Hesap sekmesinin ikonu — sette kişiyi anlatan
+  // başka bir glif yoktu ve `bell` artık bildirim ayarlarına ait.
+  user: 'M3 0h2v1h-2z M2 1h4v2h-4z M3 3h2v1h-2z M1 4h6v1h-6z M0 5h8v3h-8z',
 } as const;
 
 export type IconName = keyof typeof ICON;

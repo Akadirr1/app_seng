@@ -66,7 +66,7 @@ export default function SignupRoute() {
     try {
       await signUp(form);
       await reloadProfile();
-      router.replace('/hesap?yeni=1');
+      router.replace('/(tabs)/hesap');
     } catch (err) {
       setHata(authErrorMessage(err));
     } finally {

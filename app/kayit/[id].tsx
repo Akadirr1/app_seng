@@ -81,7 +81,7 @@ export default function RegistrationRoute() {
         title="Önce e-postanı doğrula"
         body={`${user.email} adresine gönderdiğimiz bağlantıya bastıktan sonra kaydını tamamlayabilirsin.`}
         primary="Hesabıma git"
-        onPrimary={() => router.push('/hesap')}
+        onPrimary={() => router.push('/(tabs)/hesap')}
         onBack={() => router.back()}
       />
     );
