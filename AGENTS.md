@@ -1241,3 +1241,42 @@ sayın** — sayaç, olmayan bir soruna yazılmış bir mekanizmaydı.
   önerisi OTP'yi bir Cloud Function'a koyuyor; deponun iki ayrı maddesi zaten
   yazıyor: dağıtmak Blaze istiyor, proje Spark'ta. Panel (Express + Admin SDK)
   o kutunun yerinde duruyor ve aynı işi yapıyor.
+
+### QR yoklama — kurulurken çıkanlar
+
+- **Jetonu istemciye hiç göstermeden doğrulamanın yolu kuralın `get()`'i.**
+  `eventQr/{eventId}` istemciye tamamen kapalı, ama kural değerlendirmesindeki
+  `get()` istemcinin okuma izninden geçmiyor — yani kural jetonu okuyup yazılan
+  yoklamayla karşılaştırabiliyor, jeton hiçbir zaman kabloya çıkmadan. Sunucu
+  uç noktası, Cloud Function ve Blaze gerektirmemesinin tek sebebi bu.
+  **Bu depodan doğrulanamıyor** (kural koşturacak ortam yok); ilk gerçek
+  etkinlikten önce sahte bir etkinlikle prova şart.
+- **Elle işaretlenen yoklama, sonradan okutmayı REDDETTİRİYORDU.** Panel
+  `attendance` dokümanını `token` alanı olmadan doğuruyor; aynı öğrenci sonra
+  QR okutunca yazma bir *update* oluyor ve güncelleme dalı yalnızca
+  `checkedInAt` değişimine izin verdiği için kural reddediyor. Belirti
+  kullanıcıda "pencere kapalı" gibi görünüyordu — oysa zaten kayıtlıydı.
+  İstemci artık yazmadan önce kendi satırını okuyor.
+- **Kamera saniyede onlarca kare veriyor ve her biri `onBarcodeScanned`
+  tetikliyor.** Kilit olmadan tek bir okutma onlarca Firestore yazması demek.
+  `useRef` ile meşgul bayrağı; `useState` olmazdı, çünkü render beklemeden
+  ikinci kare geliyor.
+- **`.claude/worktrees/` jest'e giriyordu.** Ajan iş akışları izole çalışmak
+  için orada geçici worktree açıyor ve her biri deponun tam kopyası, yani
+  `testMatch` aynı testleri ikinci kez — üstelik o worktree'nin yarım kurulmuş
+  `node_modules`'üyle — koşturuyor. Sonuç: kendi kodunuz yeşilken `npm test`
+  kırmızı ve hata sizin dosyalarınızı gösteriyor. `testPathIgnorePatterns` +
+  `modulePathIgnorePatterns`.
+- **Guard'ın aradığı dize yalnızca koruduğu yerde geçmeli — BEŞİNCİ kez.**
+  `attendance` kuralında jeton karşılaştırmasını doğrulayan kontrol
+  `qrTanimi(` arıyordu; o ad pencere satırlarında da geçiyor, dolayısıyla
+  jeton karşılaştırması tamamen silindiğinde kontrol yeşil kaldı — ölçüldü.
+  Artık `data.token == qrTanimi(...).token` arıyor. Ad değil, davranışın izi.
+- **Pencere +03:00'da hesaplanıyor ve kapanış etkinliğin bitişi değil, günün
+  sonu.** Salonun interneti en yoğun anda en kötü; pencere bitişte kapansaydı
+  akşam bağlantıya kavuşan telefonun yeniden denemesi kalıcı olarak
+  reddedilirdi. Yurt dışındaki telefon da günü kaydırmasın diye karşılaştırma
+  `todayLocal` ile aynı kaydırmayı kullanıyor.
+- **Yoklama "bu kişi salondaydı" demiyor, "bu hesap pencere açıkken jetonu
+  gönderdi" diyor.** Kodun paylaşılması bilinçli olarak engellenmiyor ve
+  sertifikanın üstüne bundan fazlası yazılamaz.

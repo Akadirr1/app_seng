@@ -77,6 +77,11 @@ graphify-out/
 # isimle gelirse gelsin) örtüyor.
 .agents/
 skills-lock.json
+# Ajan iş akışlarının izole çalışmak için açtığı geçici git worktree'leri.
+# Her biri deponun tam bir kopyası ve kendi .git'ini taşıyor; commit'e girerse
+# gömülü depo uyarısı veriyor ve depoyu şişiriyor.
+.claude/worktrees/
+
 .claude/skills/*
 !.claude/skills/NOTICE.md
 !.claude/skills/native-core.md

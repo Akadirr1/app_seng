@@ -31,6 +31,7 @@ import {
   buildEvent,
   isPast,
   joinLocal,
+  LOCAL_OFFSET,
   splitLocal,
   toInput,
   todayLocal,
@@ -75,6 +76,18 @@ import {
 } from '../src/pushPolicy';
 import { startDeletionSweeper } from './deletion';
 import { registerAccountApi } from './accountApi';
+import {
+  attendanceRows,
+  ensureQr,
+  markAttendance,
+  regenerateQr,
+  registeredNotPresent,
+  setQrWindow,
+  unmarkAttendance,
+} from './qr';
+import { qrLandingPage, qrPage } from './qrView';
+import { qrPayload } from '../src/qrSchema';
+import QRCode from 'qrcode';
 import { initMail, mailFrom, mailReady, sendMail } from './mail';
 import { otpMail } from './mailTemplate';
 import { deleteAccountPage, privacyPage, termsPage } from './legal';
@@ -298,6 +311,11 @@ app.post('/hesap-sil', async (req, res) => {
     );
   }
 });
+
+// Telefonun kendi kamerası QR'ı okuduğunda buraya geliyor. Giriş duvarının
+// ÖNÜNDE ve bilerek: okutan kişi öğrenci, yönetici parolası yok. Sayfa hiçbir
+// şey doğrulamıyor, yalnızca "uygulamayı aç" diyor.
+app.get('/qr/:eventId/:token', (_req, res) => res.type('html').send(qrLandingPage()));
 
 // Uygulamanın hesap uç noktaları. Kimliği yönetici parolası değil, çağıranın
 // Firebase kimlik jetonu belirliyor — bu yüzden giriş duvarının önünde.
@@ -645,6 +663,111 @@ async function allEvents(): Promise<ClubEvent[]> {
   const snap = await db.collection('events').get();
   return snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<ClubEvent, 'id'>) }) as ClubEvent);
 }
+
+// ------------------------------------------------------------------ QR yoklama
+
+/**
+ * Panelin kendi herkese açık kökü.
+ *
+ * Ortam değişkeni varsa o kazanıyor; yoksa isteğin kendisinden türetiliyor.
+ * İkincisi `Host` başlığına güveniyor ve o başlık istemcinin yazdığı şey —
+ * ama bu sayfayı yalnızca giriş yapmış yönetici görüyor ve gördüğü adres
+ * kendi yazdığı adres, yani kimseyi kandıracak bir yol yok.
+ */
+function panelKoku(req: Request): string {
+  const env = (process.env.EXPO_PUBLIC_LEGAL_BASE_URL ?? '').trim().replace(/\/+$/, '');
+  return env || `${req.protocol}://${req.get('host') ?? 'localhost'}`;
+}
+
+async function qrSayfasi(req: Request, res: Response, notice?: string) {
+  const eventId = String(req.params.id);
+  const doc = await db.collection('events').doc(eventId).get();
+  if (!doc.exists) {
+    return res.status(404).type('html').send(page('Bulunamadı', '<div class="card">Etkinlik bulunamadı.</div>'));
+  }
+  const event = doc.data() as ClubEvent;
+  const tanim = await ensureQr(db, eventId, event.startsAt);
+  const payload = qrPayload(panelKoku(req), tanim.eventId, tanim.token);
+  const [svg, yoklama, gelmeyenler] = await Promise.all([
+    QRCode.toString(payload, { type: 'svg', margin: 1, errorCorrectionLevel: 'M' }),
+    attendanceRows(db, eventId),
+    registeredNotPresent(db, eventId),
+  ]);
+
+  res.type('html').send(
+    qrPage({
+      eventId,
+      baslik: event.title,
+      tanim,
+      payload,
+      svg,
+      yoklama,
+      gelmeyenler,
+      notice,
+    }),
+  );
+}
+
+app.get('/events/:id/qr', async (req, res) => {
+  await qrSayfasi(req, res, typeof req.query.sonuc === 'string' ? req.query.sonuc : undefined);
+});
+
+app.post('/events/:id/qr/yenile', async (req, res) => {
+  const eventId = String(req.params.id);
+  await regenerateQr(db, eventId);
+  res.redirect(
+    `/events/${encodeURIComponent(eventId)}/qr?sonuc=` +
+      encodeURIComponent('Yeni kod üretildi. Basılı afişlerdeki eski kod artık çalışmıyor.'),
+  );
+});
+
+app.post('/events/:id/qr/pencere', async (req, res) => {
+  const eventId = String(req.params.id);
+  // `datetime-local` saat dilimi taşımıyor; kulüp saati damgalanıyor. Aynı
+  // karar `joinLocal`da da var: ekrandaki duvar saati anlamdır, dilim taşınır.
+  const damgala = (v: unknown) => {
+    const t = String(v ?? '').trim();
+    return /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(t) ? `${t}:00${LOCAL_OFFSET}` : '';
+  };
+  const opensAt = damgala(req.body.opensAt);
+  const closesAt = damgala(req.body.closesAt);
+  if (!opensAt || !closesAt) {
+    return res.redirect(
+      `/events/${encodeURIComponent(eventId)}/qr?sonuc=` +
+        encodeURIComponent('Tarih okunamadı, pencere değişmedi.'),
+    );
+  }
+  if (closesAt <= opensAt) {
+    // Kapanışı açılıştan önce yazmak pencereyi sessizce kapatır ve etkinlik
+    // günü kimse okutamaz — kaydetmeden önce söylenmesi gereken bir hata.
+    return res.redirect(
+      `/events/${encodeURIComponent(eventId)}/qr?sonuc=` +
+        encodeURIComponent('Kapanış açılıştan sonra olmalı. Pencere değişmedi.'),
+    );
+  }
+  await setQrWindow(db, eventId, { opensAt, closesAt });
+  res.redirect(`/events/${encodeURIComponent(eventId)}/qr?sonuc=` + encodeURIComponent('Pencere güncellendi.'));
+});
+
+app.post('/events/:id/yoklama', async (req, res) => {
+  const eventId = String(req.params.id);
+  const uid = String(req.body.uid ?? '').trim();
+  const islem = String(req.body.islem ?? '').trim();
+  let sonuc = 'Kullanıcı kimliği boş.';
+
+  if (uid && islem === 'ekle') {
+    await markAttendance(db, eventId, uid, new Date());
+    sonuc = 'Yoklamaya eklendi.';
+  } else if (uid && islem === 'sil') {
+    const durum = await unmarkAttendance(db, eventId, uid);
+    sonuc =
+      durum === 'sertifika-var'
+        ? 'Bu katılımcının sertifikası yayınlanmış; yoklaması silinmedi. Önce sertifikayı iptal edin.'
+        : 'Yoklamadan çıkarıldı.';
+  }
+
+  res.redirect(`/events/${encodeURIComponent(eventId)}/qr?sonuc=` + encodeURIComponent(sonuc));
+});
 
 app.get('/arsiv', async (_req, res) => {
   const past = (await allEvents())
