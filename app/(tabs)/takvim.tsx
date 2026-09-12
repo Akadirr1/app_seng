@@ -81,7 +81,7 @@ export default function TakvimRoute() {
             title="Takvim henüz boş"
             body="Yeni dönemin etkinlikleri planlanıyor. Bildirimleri açarsan program açıklandığında ilk sen haberdar olursun."
             ctaLabel="Bildirimleri aç"
-            onPress={() => router.navigate('/(tabs)/bildirim')}
+            onPress={() => router.push('/bildirim-ayarlari')}
           />
         )
       ) : view === 'list' ? (

@@ -963,3 +963,129 @@ sayın** — sayaç, olmayan bir soruna yazılmış bir mekanizmaydı.
   `registrations`'a spam yazılabilir (dokuz haneli numara uzayı) ve bir
   etkinlik sahte kayıtla doldurulabilir. Kural bunu durduramaz; cevabı
   Firebase App Check. Bu tur yapılmadı, bir satırlık iş değil.
+
+### Giriş sistemi — ölçülen iki çözümleme tuzağı
+
+- **`firebase/auth` React Native'de yanlış derlemeye çözülüyordu, ve bu
+  sessiz.** `firebase` 12.17.1'in `./auth` ihracat haritasında `react-native`
+  koşulu **yok**; Expo SDK 57'de iOS/Android koşul kümesi tam olarak
+  `["react-native"]` ve `unstable_enablePackageExports` açık (ölçüldü, tahmin
+  değil: `getDefaultConfig()` yazdırıldı). `node` ve `browser` koşulları aktif
+  olmadığı için `default` dalına düşülüyor.
+  **Ama zincir yine de doğru yere varıyor:** o dal tek satır —
+  `export * from '@firebase/auth'` — ve Metro o iç içe isteği kendi
+  koşullarıyla çözüp `@firebase/auth/dist/rn/index.js`'i yüklüyor, ki o
+  derleme `getReactNativePersistence`i ihraç ediyor. Yani cihazda **çalışıyor**.
+  Node/Jest'te çalışmıyor (`node` koşulu kazanıyor) ve TypeScript göremiyor
+  (`exports` haritasında `"types"` anahtarı `"react-native"`ten önce geliyor,
+  ilk eşleşen kazanıyor, paylaşılan `auth-public.d.ts`'e düşülüyor).
+  Üç ortam üç ayrı cevap veriyor; bunu okuyarak değil ölçerek ayırmak gerekti.
+  `check:release` zincirin üç halkasını da (koşul, RN derlemesinin ihracatı,
+  umbrella'nın yeniden ihracı) ayrı ayrı doğruluyor — biri kopunca oturum
+  sessizce belleğe düşer ve sürüm derlemesinde konsol yok.
+- **`initializeAuth` çağrılmazsa kalıcılık bellek oluyor.** Belirti bir hata
+  değil: "uygulama beni unutuyor". Kimse bunu bir hata olarak bildirmez.
+- **Bir kontrolün kendi gerekçesini bulması, bu defterde dördüncü kez oldu.**
+  Yasal rotaların `app.use(requireAuth)`'tan önce kayıtlı olduğunu doğrulayan
+  guard, rotaların **üstündeki yorumda** geçen `app.use(requireAuth)` metnini
+  buluyordu ve sıra doğruyken kırmızı veriyordu. Öncekiler (`addDoc`,
+  `increment(1)`, `HOLD_MS`) ters yönde yanılıyordu; bu yanlış alarm verdi, ki
+  daha az tehlikeli ama aynı kök. `strip()` olmadan kaynak eşleştirilmiyor —
+  artık istisnasız.
+- **Play'in web silme şartı, rotanın giriş duvarının önünde olmasını
+  gerektiriyor.** Panelde `app.use(requireAuth)`'tan sonra kayıt edilen bir
+  `/hesap-sil` sayfası açılıyor görünür ve giriş ekranına yönlendirir; yani
+  şart karşılanmamış olur ve kimse fark etmez. Sıra `check:release`'te.
+- **Admin SDK parola doğrulayamıyor** — tasarımı gereği, ayrıcalıklı taraf
+  parolayı hiç görmüyor. Web silme sayfasının kimlik doğrulaması bu yüzden
+  Identity Toolkit'in `signInWithPassword` uç noktasından geçiyor. Doğrulama
+  olmasaydı bir e-posta adresini bilen herkes başkasının hesabını sildirebilirdi.
+- **`registrations` kuralında `uid` bilerek İSTEĞE BAĞLI.** Mağazada hesapsız
+  bir sürüm var; alanı zorunlu kılmak, kural yayınlandığı saniyede o sürümü
+  kullanan herkesin kaydını reddeder. Yazılan `uid` yine de yazana ait olmak
+  zorunda: kimliksiz kayıt serbest, **başkasının kimliğiyle** kayıt değil.
+  Yeni sürüm yayıldıktan sonra zorunluya çevrilecek.
+
+### "Hesabım yok aq" — yazılmış ama bağlanmamış bir ekranın maliyeti
+
+- **Giriş ekranları eklendi, onlara giden kapı eklenmedi.** `/hesap`, `/giris`
+  ve `/kayit-ol` çalışır hâldeydi; uygulamada hiçbir şey oraya gitmiyordu.
+  Kayıt formundaki kapı dışında sisteme girişin yolu yoktu, yani kullanıcı
+  açısından özellik **yoktu**. Bu, bu defterdeki "bir ekranın bir hook'u
+  çağırdığını hiçbir birim testi göremez" maddesinin rota hâli: dosyanın var
+  olması, ona erişilebildiği anlamına gelmiyor. `check:release` artık hesap
+  sekmesinin giriş, kayıt, bildirim ayarları ve hesap silmeye bağlandığını
+  doğruluyor.
+- **Sekme çubuğu adları elle yazılmış bir liste.** Dosyası olmayan bir ad boş
+  bir sekme çiziyor ve dokununca hiçbir şey olmuyor — hata yok, log yok. Bir
+  ekranı yeniden adlandırıp listeyi güncellememek bunu sessizce üretiyor.
+  Kontrol her sekme adı için `app/(tabs)/<ad>.tsx` var mı diye bakıyor.
+- **Bildirim ayarları bir sekme değil, hesap ayarıydı.** Beş sekmeden biri
+  olması, uygulamanın günlük kullanımında hiç açılmayan bir ekrana kalıcı yer
+  ayırıyordu; asıl eksik olan "benim tarafım" sekmesiydi. Bildirimler artık
+  Hesabım → Ayarlar altında, ve üç ekranın başlığındaki zil düğmesi oraya
+  kısayol olarak duruyor.
+- **Hesap sekmesi giriş istemiyor, ve istememeli.** Guideline 5.1.1(v) hesap
+  tabanlı olmayan içeriği giriş duvarının arkasına koymayı yasaklıyor; üstelik
+  sekmedeki şeylerin çoğu gerçekten hesaba bağlı değil — kayıtlar cihazda,
+  bildirim tercihleri cihaza ait. Oturum yokken sekme bir duvar değil, neyin
+  kazanılacağını anlatan bir kart gösteriyor. `check:release` sekmenin
+  `/giris`'e yönlendirmediğini ayrıca doğruluyor.
+- **Hesap silme kendi ekranına taşındı.** Geri alınamayan bir işlem, ayarların
+  dibinde yanlışlıkla dokunulabilecek bir yerde durmamalı. Apple'ın "gereksiz
+  yere zorlaştırmayın" kuralı adım sayısını değil engelleri kastediyor; ayrı
+  ekran + parola + onay izin verilen doğrulama.
+- **Kayıt listesi geçmiş etkinlikleri de okumak zorunda.** `useContent().events`
+  yalnızca yaklaşanları veriyor (`splitByDate`), dolayısıyla olmuş bir
+  etkinliğin kaydı kartta başlık yerine ham kimliğini gösterirdi. Liste
+  `events` + `archive` üzerinden arıyor.
+
+### Doğum tarihi kutusu — biçimlendirmenin girdiyi kilitlemesi
+
+- **Her tuş vuruşunda doldurmak, alanı kullanılamaz hâle getiriyor.**
+  `DateFields` birleştirilmiş `YYYY-MM-DD` değerini tek doğru kaynak sayıyordu:
+  yıla `2` yazılınca `pad` onu `0002` yapıyor, dört hane kutuya geri basılıyor
+  ve `maxLength={4}` dolduğu için klavye beşinci haneyi **kabul etmiyor**.
+  Gün ve ayda da aynısı (`2` → `02`, iki hane dolu). Simülatörde ölçüldü:
+  `2005` ancak yapıştırılarak girilebildi. Hata bir çökme ya da uyarı değil —
+  tuşa basılıyor ve hiçbir şey olmuyor, ki bu en geç fark edilen sınıf.
+- **Kural: bir girdi kutusunun değeri, kullanıcının yazdığı ham hâl olmalı.**
+  Normalleştirme (doldurma, biçimlendirme, kesme) ancak kutunun **dışına**
+  çıkarken uygulanabilir. Ekrana geri yazılan her normalleştirme, kullanıcının
+  bir sonraki tuşuyla yarışıyor.
+- **Yarım girdi ile tam değer aynı şey değil.** `joinDate` üç kutu da dolmadan
+  boş dönüyor; doldurma yalnızca orada ve yalnızca tamamlanmış tarihte oluyor.
+  Kutular kendi ham hanelerini `useState` ile tutuyor.
+- **Ekranın içine gömülü bir bileşenin testi olmuyor, o yüzden hatası da
+  görünmüyordu.** Karar `src/accountSchema.ts`'e (`splitDate`/`joinDate`/
+  `digits`) taşındı ve testi yazıldı; eski doldurma davranışı geri konunca iki
+  test kırmızı verdi — ölçüldü.
+- **React 19'da `ref` sıradan bir prop**, `forwardRef` gerekmiyor; ama paylaşılan
+  `Input` bileşeninin tipinde yazılmazsa TS2322 veriyor. Hane dolunca sıradaki
+  kutuya odaklanmak bunu kullanıyor.
+
+### Sekiz piksellik bir glif yolu okunarak değerlendirilemez
+
+- **Hesap ikonu istenmeyen bir siluet okuyordu ve bunu kullanıcı bildirdi.**
+  Yol olarak yazılınca makul görünüyordu: baş, boyun, omuz, gövde. Izgaraya
+  basılınca sorun apaçık — iki piksellik "boyun", altındaki tam genişlikteki
+  kütleyle birleşince başka bir şey okutuyor. **Bu deponun defterinde zaten
+  bir bildirim ikonu maddesi var** ("24dp'de gri bulamaç olur, tam çözünürlükte
+  yargılanamaz"); aynı ders, bu sefer ASCII ızgarada.
+- **Kural: iki geniş dolu satır arasında dar bir dolu satır bırakma.** Boyun
+  yerine **boş satır** kondu; baş ile omuz birbirine değmiyor. Boş satır kuralı
+  bozmuyor çünkü kural yalnızca dolu satırlara bakıyor.
+- Kontrol `src/__tests__/icons.test.ts`'te ve eski yol geri konunca iki testi
+  birden kırmızı verdi — ölçüldü. Bir glifi değerlendirmenin tek yolu onu
+  basmak: testteki `rowWidths` aynı ayrıştırmayı yapıyor.
+- **Bir düzeltmenin ürettiği yeni şekil de bir şekil.** Boyun kalkınca alt üç
+  satır 8×3'lük dolu bir dikdörtgene indi ve aynı kullanıcı bu sefer "kolu yok,
+  özürlü duruyor" diye bildirdi: dolu bir blokta anatomi okunmuyor. Kollar artık
+  birer piksel, gövdeden birer piksellik boşlukla ayrı, ve gövdeden **bir satır
+  önce bitiyor** — bitmeselerdi üç paralel çubuk olurlardı, kol değil.
+- **Satır genişliği anatomiyi göremiyor.** Mevcut iki iddia (boğum yok, baş ile
+  gövde arasında boş satır) kolsuz dikdörtgende de yeşildi — ölçüldü: eski yol
+  geri konduğunda ikisi de geçti, yalnızca yeni iddia kırmızı verdi. `rowRuns`
+  satırdaki **ayrı parça** sayısını sayıyor: `████████` bir, `█ . ████ . █` üç.
+  Bir şekli koruyacak iddia, o şeklin bozulduğunda değişen şeyi ölçmeli;
+  genişlik burada o şey değildi.

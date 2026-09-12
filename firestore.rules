@@ -36,7 +36,10 @@ service cloud.firestore {
     // kaydını okuyamaz veya değiştiremez. Kulüp yönetimi kayıtları konsoldan
     // veya Admin SDK ile görür.
     match /registrations/{registrationId} {
-      allow read: if false;
+      // Kendi kaydını okuyabiliyor — telefon değişince kaydın kaybolmamasının
+      // tek yolu bu. `uid` taşımayan eski kayıtlar kimseye açılmıyor:
+      // `resource.data.uid` yoksa karşılaştırma null döner ve kural geçmez.
+      allow read: if request.auth != null && resource.data.uid == request.auth.uid;
       allow delete: if false;
 
       // Yeniden gönderim. Yazma Firestore'a ulaşıp `synced` bayrağı cihaza
@@ -52,8 +55,20 @@ service cloud.firestore {
 
       allow create: if
         // Beklenen alanlar dışında bir şey yazılamasın.
+        //
+        // `uid` İSTEĞE BAĞLI, ve bu geçici bir durum: mağazada şu anda hesabı
+        // olmayan bir sürüm var. `uid`'i zorunlu kılmak, o sürümü kullanan
+        // herkesin kaydını anında reddeder — kural yayınlandığı saniyede
+        // üretim kırılır. Yeni sürüm yayılınca zorunluya çevrilecek.
+        //
+        // Yine de yazılan `uid` yazana ait olmak zorunda: kimliksiz kayıt
+        // serbest, ama BAŞKASININ kimliğiyle kayıt serbest değil.
         request.resource.data.keys().hasOnly(
-          ['regId', 'seatId', 'eventId', 'code', 'name', 'studentNo', 'department', 'year', 'createdAt']
+          ['regId', 'seatId', 'eventId', 'code', 'name', 'studentNo', 'department', 'year', 'createdAt', 'uid']
+        )
+        && (
+          !('uid' in request.resource.data.keys())
+          || (request.auth != null && request.resource.data.uid == request.auth.uid)
         )
         // Doküman kimliği öğrenci numarasından türüyor: aynı numara aynı
         // etkinliğe ikinci kez yazılamasın. İkinci yazma var olan dokümana denk
@@ -193,6 +208,32 @@ service cloud.firestore {
         && request.resource.data.values is map
         && request.resource.data.values.size() > 0
         && request.resource.data.values.size() <= 12;
+    }
+
+    // Hesap profilleri. Yalnızca sahibi okuyor ve yazıyor — ad, telefon ve
+    // doğum tarihi burada duruyor, yani sızması KVKK ihlali.
+    match /users/{uid} {
+      allow read, write: if request.auth != null && request.auth.uid == uid;
+    }
+
+    // Hesap silme talepleri.
+    //
+    // Silmeyi istemci yapamıyor: kendi kaydını silmek başkasının koltuk
+    // dokümanına dokunmayı gerektiriyor. Cloud Functions da yok — Blaze
+    // istiyor. Talep buraya yazılıyor, paneldeki yoklayıcı Admin SDK ile
+    // temizliyor ve `status`'u `done` yapıyor.
+    //
+    // Okuma açık ama yalnızca kendi dokümanına: ekran silmenin bittiğini
+    // buradan öğreniyor ve Apple "tamamlandı" onayı istiyor.
+    match /deletionRequests/{uid} {
+      allow read: if request.auth != null && request.auth.uid == uid;
+      allow create: if request.auth != null
+                    && request.auth.uid == uid
+                    && request.resource.data.uid == uid
+                    && request.resource.data.status == 'pending';
+      // Güncelleme paneldeki Admin SDK'nın işi; istemci kendi talebini
+      // "bitti" ilan edemesin.
+      allow update, delete: if false;
     }
 
     // Bildirim otomasyonunun defterleri. Yalnızca panel (Admin SDK) yazıyor;

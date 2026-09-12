@@ -68,7 +68,7 @@ export default function HomeRoute() {
           </View>
 
           <Pressable
-            onPress={() => router.navigate('/(tabs)/bildirim')}
+            onPress={() => router.push('/bildirim-ayarlari')}
             accessibilityRole="button"
             accessibilityLabel="Bildirim ayarları"
             style={({ pressed }) => [styles.bell, { opacity: pressed ? 0.7 : 1 }]}

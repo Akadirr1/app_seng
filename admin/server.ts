@@ -73,7 +73,10 @@ import {
   decideRaffleResult,
   pushLogId,
 } from '../src/pushPolicy';
+import { startDeletionSweeper } from './deletion';
+import { deleteAccountPage, privacyPage, termsPage } from './legal';
 import { resolvePort } from './port';
+import { verifyPassword } from './webAuth';
 import { csvCell } from './csv';
 import { SESSION_SECONDS, cookieHeader, issueToken, loginLimiter, verifyToken } from './session';
 import { archiveList, esc, eventForm, loginPage, page, raffleForm, winnersForm } from './views';
@@ -242,6 +245,49 @@ app.post('/login', (req, res) => {
 app.post('/logout', (req, res) => {
   res.setHeader('Set-Cookie', cookieHeader({ name: COOKIE, value: '', secure: req.secure, maxAge: 0 }));
   res.redirect('/login');
+});
+
+// --------------------------------------------------- herkese açık sayfalar
+//
+// `app.use(requireAuth)`'tan ÖNCE: sonra kayıt edilselerdi yönetici parolası
+// isterlerdi, ve Play'in şartı tam tersi — uygulamaya erişemeyen kullanıcı
+// bu sayfadan hesabını silebilmeli. `check:release` sıranın korunduğunu
+// doğruluyor.
+
+app.get('/gizlilik', (_req, res) => res.type('html').send(privacyPage()));
+app.get('/kosullar', (_req, res) => res.type('html').send(termsPage()));
+app.get('/hesap-sil', (_req, res) => res.type('html').send(deleteAccountPage()));
+
+app.post('/hesap-sil', async (req, res) => {
+  const email = String(req.body.email ?? '').trim().toLowerCase();
+  const password = String(req.body.password ?? '');
+  if (!email || !password) {
+    return res.status(400).type('html').send(
+      deleteAccountPage({ error: 'E-posta ve parolanızı girin.' }),
+    );
+  }
+
+  // Kimlik Firebase'in kendi REST uç noktasıyla doğrulanıyor: Admin SDK
+  // parola doğrulayamıyor (tasarımı gereği — parolayı hiç görmüyor).
+  // Doğrulamadan talep kabul etmek, bir e-postayı bilen herkese başkasının
+  // hesabını sildirmek olurdu.
+  try {
+    const uid = await verifyPassword(email, password);
+    await db.collection('deletionRequests').doc(uid).set({
+      uid,
+      email,
+      status: 'pending',
+      requestedAt: new Date().toISOString(),
+      kaynak: 'web',
+    });
+    res.type('html').send(deleteAccountPage({ done: true }));
+  } catch {
+    // Tek cümle: "böyle bir hesap yok" ile "parola yanlış"ı ayırmak, bir
+    // adresin kayıtlı olup olmadığını dışarıdan sorulabilir hâle getirir.
+    res.status(401).type('html').send(
+      deleteAccountPage({ error: 'E-posta veya parola hatalı.' }),
+    );
+  }
 });
 
 app.use(requireAuth);
@@ -1095,4 +1141,7 @@ app.listen(PORT, () => {
   // Duyurular panelde yazılmıyor — kulübün sitesinde yazılıyor, o yüzden tek
   // yol yoklamak. İlk tur hiçbir şey göndermiyor, mevcut listeyi işaretliyor.
   startAnnouncementPoller(db);
+  // Hesap silme temizliği. Cloud Functions olmadığı için (Blaze istiyor) bu
+  // iş panelin üçüncü yoklayıcısı; Apple silmenin tamamlanmasını istiyor.
+  startDeletionSweeper(db);
 });

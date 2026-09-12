@@ -1,24 +1,27 @@
 import { LinearGradient } from 'expo-linear-gradient';
+import { useRouter } from 'expo-router';
 import React from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 
-import { PixelIcon } from '../../src/components/Pixel';
+import { PixelIcon } from '../src/components/Pixel';
 import {
   Card,
   DottedRule,
+  GlassButton,
   GradientHeader,
   GroupLabel,
   IconTile,
   Segmented,
   Toggle,
   Txt,
-} from '../../src/components/ui';
-import { DIGEST_HOURS, NOTIFICATION_CATEGORIES, REMINDER_OPTIONS } from '../../src/data';
-import { DIGEST_CATEGORY, QUIET_END_HOUR, QUIET_START_HOUR } from '../../src/notificationPlan';
-import { useAppStore } from '../../src/store';
-import { colors, gradientDirection, gradients, radius } from '../../src/theme';
+} from '../src/components/ui';
+import { DIGEST_HOURS, NOTIFICATION_CATEGORIES, REMINDER_OPTIONS } from '../src/data';
+import { DIGEST_CATEGORY, QUIET_END_HOUR, QUIET_START_HOUR } from '../src/notificationPlan';
+import { useAppStore } from '../src/store';
+import { colors, gradientDirection, gradients, radius } from '../src/theme';
 
-export default function BildirimRoute() {
+export default function BildirimAyarlariRoute() {
+  const router = useRouter();
   const { notifications, setMaster, toggleCategory, setReminder, setQuietHours, setDigestHour } =
     useAppStore();
   const { master } = notifications;
@@ -30,6 +33,9 @@ export default function BildirimRoute() {
       showsVerticalScrollIndicator={false}
     >
       <GradientHeader gradient={gradients.section} style={{ paddingBottom: 20 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 14 }}>
+          <GlassButton label="‹" accessibilityLabel="Geri" onPress={() => router.back()} size={36} />
+        </View>
         <Txt weight="extrabold" size={24} color="#fff" tracking={-0.5}>
           Bildirim Ayarları
         </Txt>

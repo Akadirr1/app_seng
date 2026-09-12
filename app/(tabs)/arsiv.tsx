@@ -84,7 +84,7 @@ export default function ArsivRoute() {
             title="Bu kategoride henüz arşiv yok"
             body={`İlk ${category.toLocaleLowerCase('tr')} etkinliğimiz bu dönem planlanıyor. Bildirimleri açarsan duyurulduğunda haber veririz.`}
             ctaLabel="Bildirimleri aç"
-            onPress={() => router.navigate('/(tabs)/bildirim')}
+            onPress={() => router.push('/bildirim-ayarlari')}
           />
         ) : (
           <View style={styles.grid}>

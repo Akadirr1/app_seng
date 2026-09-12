@@ -113,11 +113,41 @@ export const REMINDER_OPTIONS = ['1 saat önce', '1 gün önce', '3 gün önce']
 export const DIGEST_HOURS = [7, 8, 9];
 
 /**
+ * Yasal sayfaların tabanı — yönetim panelinin herkese açık kökü.
+ *
+ * Panel bu üç sayfayı kendi rotaları olarak sunuyor (`admin/legal.ts`), çünkü
+ * hesap sistemi olan bir uygulamanın gizlilik ve kullanım koşullarını web'de
+ * yayınlaması gerekiyor; Play ayrıca **uygulamaya erişemeyen** biri için
+ * web'den çalışan bir hesap silme adresi istiyor.
+ *
+ * `process.env.EXPO_PUBLIC_*` burada bilerek statik üye erişimiyle yazılıyor:
+ * Expo'nun babel eklentisi değeri ancak bu biçimde GÖRÜRSE pakete gömüyor.
+ * Hesaplanan bir anahtar üretim derlemesinde `undefined` verir ve sonuç
+ * "yapılandırma yok" gibi görünür, "kod yanlış" gibi değil.
+ */
+const LEGAL_BASE = (process.env.EXPO_PUBLIC_LEGAL_BASE_URL ?? '').replace(/\/+$/, '');
+
+/**
  * Gizlilik politikası ve KVKK aydınlatma metni. Kayıt formundaki onay satırının
  * altından açılır, ve iki mağazanın gizlilik alanına da bu adres yazılır.
+ *
+ * Taban tanımlı değilse eski barındırma adresi kullanılıyor: gizlilik metni
+ * mağazalarda zaten ilan edilmiş durumda ve çalışan bir adres, çalışmayan bir
+ * adresten iyi.
  */
-export const PRIVACY_POLICY_URL =
-  'https://kou-yazilim-kulubu-gizlilik.akadirr41.chatgpt.site';
+export const PRIVACY_POLICY_URL = LEGAL_BASE
+  ? `${LEGAL_BASE}/gizlilik`
+  : 'https://kou-yazilim-kulubu-gizlilik.akadirr41.chatgpt.site';
+
+/**
+ * Kullanım koşulları. Tabanı yoksa **boş** — ve bu bilinçli: gizlilik metnine
+ * "kullanım koşulları" diye bağlantı vermek, olmayan bir belgeyi varmış gibi
+ * göstermek olurdu. Boşken ekran bağlantıyı hiç çizmiyor.
+ */
+export const TERMS_URL = LEGAL_BASE ? `${LEGAL_BASE}/kosullar` : '';
+
+/** Play'in şart koştuğu web'den hesap silme adresi. */
+export const ACCOUNT_DELETE_URL = LEGAL_BASE ? `${LEGAL_BASE}/hesap-sil` : '';
 
 export type OnboardingPage = {
   kicker: string;

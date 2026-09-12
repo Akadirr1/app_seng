@@ -19,6 +19,7 @@ import { ContentProvider } from '../src/content';
 import { FIREBASE_SETUP_HINT, isFirebaseConfigured } from '../src/firebaseConfig';
 import { NotificationSync } from '../src/notifications';
 import { QueryProvider } from '../src/gundem/providers/QueryProvider';
+import { AuthProvider } from '../src/authStore';
 import { AppStoreProvider } from '../src/store';
 import { colors } from '../src/theme';
 
@@ -52,7 +53,10 @@ export default function RootLayout() {
 
   return (
     <SafeAreaProvider onLayout={onReady}>
-      <AppStoreProvider>
+      {/* Oturum en dışta: kayıt ekranı da, hesap ekranı da, katılma kapısı da
+          aynı kullanıcıyı görmek zorunda. */}
+      <AuthProvider>
+        <AppStoreProvider>
         <ContentProvider>
           <AnnouncementsProvider>
             {/* AI Gündem'in sunucu durumu. Kulüp tarafı buna dokunmuyor; burada
@@ -67,7 +71,8 @@ export default function RootLayout() {
             </QueryProvider>
           </AnnouncementsProvider>
         </ContentProvider>
-      </AppStoreProvider>
+        </AppStoreProvider>
+      </AuthProvider>
     </SafeAreaProvider>
   );
 }
@@ -87,6 +92,10 @@ function RootStack() {
         <Stack.Screen name="(tabs)" options={{ animation: 'fade' }} />
         <Stack.Screen name="etkinlik/[id]" />
         <Stack.Screen name="kayit/[id]" />
+        <Stack.Screen name="giris" />
+        <Stack.Screen name="kayit-ol" />
+        <Stack.Screen name="hesap-sil" />
+        <Stack.Screen name="bildirim-ayarlari" />
         <Stack.Screen name="duyuru/[id]" />
         <Stack.Screen name="cekilis/[id]" />
         <Stack.Screen name="cekilis-kurallari" />

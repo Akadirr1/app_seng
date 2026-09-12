@@ -1,5 +1,5 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   KeyboardAvoidingView,
   Linking,
@@ -21,6 +21,8 @@ import {
   Segmented,
   Txt,
 } from '../../src/components/ui';
+import { useAuth } from '../../src/authStore';
+import { AuthGate } from '../../src/components/AuthGate';
 import { useContent, useEvent } from '../../src/content';
 import { isFull } from '../../src/eventSchema';
 import { DEPARTMENTS, PRIVACY_POLICY_URL, YEARS } from '../../src/data';
@@ -36,6 +38,7 @@ export default function RegistrationRoute() {
   const event = useEvent(id);
   const { registeredCount } = useContent();
   const { register, registrationFor } = useAppStore();
+  const { user, profile, loading: authLoading, emailVerified } = useAuth();
 
   const [name, setName] = useState('');
   const [studentNo, setStudentNo] = useState('');
@@ -44,8 +47,45 @@ export default function RegistrationRoute() {
   const [kvkk, setKvkk] = useState(false);
   const [focused, setFocused] = useState<string | null>(null);
 
+  // Ad soyad profilden geliyor: kullanıcı bunu hesap açarken bir kez yazdı.
+  // `useEffect` çünkü profil ilk render'da henüz okunmamış olabiliyor —
+  // başlangıç değeri olarak vermek, geç gelen profili hiç görmemek demek.
+  useEffect(() => {
+    if (profile?.adSoyad) setName((mevcut) => mevcut || profile.adSoyad);
+  }, [profile]);
+
   // After every hook, so the early return cannot change the hook order.
   if (!event) return <MissingEvent onBack={() => router.replace('/(tabs)/takvim')} />;
+
+  // Katılma hesap istiyor. Gezinme değil, yalnızca bu eylem — Apple 5.1.1(v)
+  // hesap tabanlı olmayan içeriği giriş duvarının arkasına koymayı yasaklıyor.
+  if (!authLoading && !user) {
+    return (
+      <AuthGate
+        title="Katılmak için giriş yap"
+        body="Etkinlik kaydı hesabına bağlanıyor: bilgilerini bir kez yazıyorsun, kaydın telefonun değişse de duruyor."
+        primary="Giriş yap"
+        onPrimary={() => router.replace(`/giris?next=/kayit/${encodeURIComponent(event.id)}`)}
+        secondary="Hesap oluştur"
+        onSecondary={() => router.replace('/kayit-ol')}
+        onBack={() => router.back()}
+      />
+    );
+  }
+
+  // Doğrulanmamış e-posta kuralda da reddediliyor; kullanıcıya sebebini
+  // burada söylemek, Firestore'dan dönen izin hatasını göstermekten iyi.
+  if (user && !emailVerified) {
+    return (
+      <AuthGate
+        title="Önce e-postanı doğrula"
+        body={`${user.email} adresine gönderdiğimiz bağlantıya bastıktan sonra kaydını tamamlayabilirsin.`}
+        primary="Hesabıma git"
+        onPrimary={() => router.push('/(tabs)/hesap')}
+        onBack={() => router.back()}
+      />
+    );
+  }
 
   // Detay ekranı dolu etkinlikte düğmeyi göstermiyor ama bu ekrana derin
   // bağlantıyla da gelinebiliyor. Zaten kayıtlı olan öğrenci engellenmiyor:
