@@ -1203,6 +1203,18 @@ app.listen(PORT, () => {
       : `[posta] SMTP YAPILANDIRILMAMIŞ (eksik: ${posta.eksik.join(', ')}). ` +
         'Doğrulama kodu gönderilemez, hesaplar doğrulanamaz.',
   );
+  // Web'den hesap silme Identity Toolkit'e gidiyor ve bu anahtarı istiyor
+  // (`admin/webAuth.ts`). Yerelde uygulama ile panel aynı `.env`'i okuduğu için
+  // hep tanımlı; sunucuda İKİ AYRI ORTAM var ve anahtar yalnızca EAS'a
+  // konursa panel onu hiç görmüyor. Belirtisi ancak bir kullanıcı hesabını
+  // silmeye çalıştığında ortaya çıkıyor — Play'in şart koştuğu sayfa.
+  if (!process.env.EXPO_PUBLIC_FIREBASE_API_KEY) {
+    console.error(
+      '[hesap-sil] EXPO_PUBLIC_FIREBASE_API_KEY panelin ortamında YOK. ' +
+        "Web'den hesap silme çalışmaz (Play şartı). EAS'taki değer panele " +
+        'geçmiyor; buraya da eklenmesi gerekiyor.',
+    );
+  }
   // Sessiz saatlerde biriken bildirimleri sabah gönderen zamanlayıcı.
   startPushFlusher(db);
   // Duyurular panelde yazılmıyor — kulübün sitesinde yazılıyor, o yüzden tek
