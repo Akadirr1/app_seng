@@ -107,6 +107,34 @@ graph queries first (`graphify query`, `path`, `explain`), file scans second.**
 - Add `check:*` scripts to `package.json` when the first regression appears, not before,
   and start with the assertion that catches that regression.
 
+## Dağıtım yüzeyleri — her değişiklik bunlardan birine düşüyor
+
+Bu depo **tek bir şey yayınlamıyor**, dört ayrı yere dağıtılıyor, ve bir
+değişikliğin hangisine düştüğü koda bakınca belli olmuyor. Operatör yanlış
+yerde ararsa "yaptım ama çalışmıyor" diyor — bu defterde aynı sınıfta üç kayıt
+zaten var (yayınlanmamış kurallar, draft kalan Play sürümü, deploy edilmemiş
+panel).
+
+**Kural: kod değiştiren her cevap, hangi yüzeye dokunduğunu ve o yüzeyin ne
+istediğini yazacak.** Dokunulmayan yüzeyler de "gerekmiyor" diye geçilecek;
+sessizlik "gerekmiyor" anlamına gelmiyor.
+
+| Yüzey | Dosyalar | Ne gerekiyor | Kullanıcıya ne zaman ulaşır |
+|---|---|---|---|
+| **Mobil uygulama** | `app/`, `src/`, `app.json`, uygulama bağımlılıkları | EAS derlemesi + mağaza sürümü | Mağaza yayınlayınca — güncelleme almayan kullanıcıda eski sürüm kalır |
+| **Panel (backend)** | `admin/`, `nixpacks.toml`, panel ortam değişkenleri | Coolify'da **redeploy** | Deploy biter bitmez |
+| **Firestore kuralları** | `firestore.rules` | `npm run rules:deploy` | Yayınlanır yayınlanmaz — **deploy'dan bağımsız** |
+| **Yalnızca depo** | `docs/`, `scripts/check-*`, `AGENTS.md`, testler | hiçbir şey | hiç |
+
+İki tuzak, ikisi de yaşandı:
+
+- **Ortam değişkeni değiştirmek de deploy istiyor.** Coolify'da değeri yazıp
+  kaydetmek koşan konteyneri değiştirmiyor; `process.env` süreç başlarken
+  okunuyor. Panel açılış satırında hangi modda olduğunu yazıyor, oraya bakın.
+- **Kurallar deploy'a binmiyor.** `firestore.rules` panelle birlikte gitmiyor,
+  Firestore onu projeden okuyor. Panel deploy edilmiş olması kuralların
+  yayınlandığı anlamına gelmez.
+
 ## Load-bearing decisions — the why log
 
 When a non-obvious bug is fixed, the **reason** goes here next to the rule, not just the
