@@ -96,7 +96,26 @@ export function registerAccountApi(app: Express, db: Firestore): void {
     await ref.set(kayit);
 
     try {
-      await sendMail({ to: kim.email, ...otpMail(karar.code, Math.round(OTP_TTL_MS / 60_000)) });
+      const sonuc = await sendMail({
+        to: kim.email,
+        ...otpMail(karar.code, Math.round(OTP_TTL_MS / 60_000)),
+      });
+      // BAŞARILI GÖNDERİM DE YAZILIYOR, ve bu bir ayrıntı değil: eskiden
+      // yalnızca hata yazılıyordu, dolayısıyla "kod gelmedi" diyen bir
+      // kullanıcıda log BOŞTU ve bu "istek hiç ulaşmadı" gibi okunuyordu —
+      // oysa gönderim yapılmış olabilir. Kod satıra YAZILMIYOR; yazılan şey
+      // postanın kabul edilip edilmediği.
+      console.log(
+        `[posta] doğrulama kodu → ${kim.email} · kabul: ${sonuc.accepted.join(', ') || 'yok'}` +
+          (sonuc.rejected.length ? ` · RED: ${sonuc.rejected.join(', ')}` : '') +
+          ` · zarf göndereni: ${sonuc.envelopeFrom}`,
+      );
+      if (!sonuc.accepted.length) {
+        // Sunucu bağlantıyı kabul edip alıcıyı reddettiğinde `sendMail`
+        // fırlatmıyor. İstemciye "gönderildi" demek yanlış olurdu.
+        await ref.delete().catch(() => {});
+        return res.status(502).json({ hata: 'posta_gonderilemedi' });
+      }
     } catch (err) {
       await ref.delete().catch(() => {});
       console.error('[posta] doğrulama kodu gönderilemedi:', err);

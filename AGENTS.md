@@ -1215,6 +1215,17 @@ sayın** — sayaç, olmayan bir soruna yazılmış bir mekanizmaydı.
   birden girilen **tek** değer var (`EXPO_PUBLIC_FIREBASE_API_KEY`) ve rapor
   artık onu adıyla işaretliyor. Bir aracın adı bir şeyi kapsıyor diye onu
   taramaya katmayın; neyin dağıtıldığına bakın.
+- **Yalnızca hatayı yazan bir log, "hiç çalışmadı" gibi okunuyor.**
+  `/api/hesap/kod` başarılı gönderimde hiçbir şey yazmıyordu; kullanıcı "kod
+  gelmedi" dediğinde operatör loga bakıp **boş** buluyor ve bunu "istek
+  sunucuya hiç ulaşmadı" diye yorumluyor — oysa posta gönderilmiş de olabilir.
+  İki durumu ayıran tek şey başarı satırıydı ve o satır yoktu. Artık alıcı,
+  `accepted`, `rejected` ve zarf göndereni yazılıyor (kod YAZILMIYOR).
+- **`sendMail` alıcı reddedildiğinde fırlatmıyor.** SMTP sunucusu bağlantıyı
+  kabul edip tek tek alıcıları reddedebiliyor; nodemailer bunu `rejected`
+  dizisinde döndürüyor, istisna olarak değil. `accepted` boşken istemciye
+  "gönderildi" demek, kullanıcıyı hiç gelmeyecek bir postayı beklemeye
+  mahkûm ediyordu.
 - **Cloud Function bu projede bir seçenek değil.** Dışarıdan gelen her tasarım
   önerisi OTP'yi bir Cloud Function'a koyuyor; deponun iki ayrı maddesi zaten
   yazıyor: dağıtmak Blaze istiyor, proje Spark'ta. Panel (Express + Admin SDK)
