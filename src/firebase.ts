@@ -66,6 +66,16 @@ export const COLLECTIONS = {
   devices: 'devices',
   raffles: 'raffles',
   raffleEntries: 'raffleEntries',
+  /** Hesap profilleri. Doküman kimliği Auth `uid`'i; okuma/yazma yalnızca sahibine. */
+  users: 'users',
+  /**
+   * Hesap silme talepleri. İstemci yazıyor, panel işliyor.
+   *
+   * Ayrı bir koleksiyon çünkü temizliği istemci yapamıyor: kendi kaydını
+   * silmek başkasının koltuk dokümanına dokunmayı gerektiriyor ve Cloud
+   * Functions bu projede yok (Blaze istiyor).
+   */
+  deletionRequests: 'deletionRequests',
 } as const;
 
 /** Firestore retries an unreachable backend forever, so reads get a deadline. */
@@ -195,9 +205,19 @@ export async function pushRegistration(payload: RegistrationPayload): Promise<st
   //
   // `arrayUnion` idempotent: aynı jeton ikinci kez eklenmez. Yeniden gönderim
   // ne kopya kayıt üretiyor (doküman kimliği `regId`) ne de sayıyı şişiriyor.
+  // Kaydın sahibi: kural `uid`'i zorunlu kılmıyor (mağazada hesapsız bir
+  // sürüm var ve zorunlu kılmak onu anında kırardı), ama yazabiliyorsak
+  // yazıyoruz — kaydı cihazdan bağımsız okunabilir kılan tek alan bu.
+  //
+  // Auth modülü dinamik olarak içe aktarılıyor: hesabı olmayan bir kullanıcı
+  // için Auth SDK'sını kayıt yoluna sokmanın anlamı yok.
+  const { currentUser } = await import('./auth');
+  const uid = currentUser()?.uid;
+
   const batch = writeBatch(db);
   batch.set(doc(db, COLLECTIONS.registrations, payload.regId), {
     ...payload,
+    ...(uid ? { uid } : {}),
     createdAt: serverTimestamp(),
   });
   batch.set(

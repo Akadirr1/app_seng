@@ -963,3 +963,45 @@ sayın** — sayaç, olmayan bir soruna yazılmış bir mekanizmaydı.
   `registrations`'a spam yazılabilir (dokuz haneli numara uzayı) ve bir
   etkinlik sahte kayıtla doldurulabilir. Kural bunu durduramaz; cevabı
   Firebase App Check. Bu tur yapılmadı, bir satırlık iş değil.
+
+### Giriş sistemi — ölçülen iki çözümleme tuzağı
+
+- **`firebase/auth` React Native'de yanlış derlemeye çözülüyordu, ve bu
+  sessiz.** `firebase` 12.17.1'in `./auth` ihracat haritasında `react-native`
+  koşulu **yok**; Expo SDK 57'de iOS/Android koşul kümesi tam olarak
+  `["react-native"]` ve `unstable_enablePackageExports` açık (ölçüldü, tahmin
+  değil: `getDefaultConfig()` yazdırıldı). `node` ve `browser` koşulları aktif
+  olmadığı için `default` dalına düşülüyor.
+  **Ama zincir yine de doğru yere varıyor:** o dal tek satır —
+  `export * from '@firebase/auth'` — ve Metro o iç içe isteği kendi
+  koşullarıyla çözüp `@firebase/auth/dist/rn/index.js`'i yüklüyor, ki o
+  derleme `getReactNativePersistence`i ihraç ediyor. Yani cihazda **çalışıyor**.
+  Node/Jest'te çalışmıyor (`node` koşulu kazanıyor) ve TypeScript göremiyor
+  (`exports` haritasında `"types"` anahtarı `"react-native"`ten önce geliyor,
+  ilk eşleşen kazanıyor, paylaşılan `auth-public.d.ts`'e düşülüyor).
+  Üç ortam üç ayrı cevap veriyor; bunu okuyarak değil ölçerek ayırmak gerekti.
+  `check:release` zincirin üç halkasını da (koşul, RN derlemesinin ihracatı,
+  umbrella'nın yeniden ihracı) ayrı ayrı doğruluyor — biri kopunca oturum
+  sessizce belleğe düşer ve sürüm derlemesinde konsol yok.
+- **`initializeAuth` çağrılmazsa kalıcılık bellek oluyor.** Belirti bir hata
+  değil: "uygulama beni unutuyor". Kimse bunu bir hata olarak bildirmez.
+- **Bir kontrolün kendi gerekçesini bulması, bu defterde dördüncü kez oldu.**
+  Yasal rotaların `app.use(requireAuth)`'tan önce kayıtlı olduğunu doğrulayan
+  guard, rotaların **üstündeki yorumda** geçen `app.use(requireAuth)` metnini
+  buluyordu ve sıra doğruyken kırmızı veriyordu. Öncekiler (`addDoc`,
+  `increment(1)`, `HOLD_MS`) ters yönde yanılıyordu; bu yanlış alarm verdi, ki
+  daha az tehlikeli ama aynı kök. `strip()` olmadan kaynak eşleştirilmiyor —
+  artık istisnasız.
+- **Play'in web silme şartı, rotanın giriş duvarının önünde olmasını
+  gerektiriyor.** Panelde `app.use(requireAuth)`'tan sonra kayıt edilen bir
+  `/hesap-sil` sayfası açılıyor görünür ve giriş ekranına yönlendirir; yani
+  şart karşılanmamış olur ve kimse fark etmez. Sıra `check:release`'te.
+- **Admin SDK parola doğrulayamıyor** — tasarımı gereği, ayrıcalıklı taraf
+  parolayı hiç görmüyor. Web silme sayfasının kimlik doğrulaması bu yüzden
+  Identity Toolkit'in `signInWithPassword` uç noktasından geçiyor. Doğrulama
+  olmasaydı bir e-posta adresini bilen herkes başkasının hesabını sildirebilirdi.
+- **`registrations` kuralında `uid` bilerek İSTEĞE BAĞLI.** Mağazada hesapsız
+  bir sürüm var; alanı zorunlu kılmak, kural yayınlandığı saniyede o sürümü
+  kullanan herkesin kaydını reddeder. Yazılan `uid` yine de yazana ait olmak
+  zorunda: kimliksiz kayıt serbest, **başkasının kimliğiyle** kayıt değil.
+  Yeni sürüm yayıldıktan sonra zorunluya çevrilecek.

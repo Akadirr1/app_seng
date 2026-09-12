@@ -23,6 +23,11 @@ import {
 import { isBucketMissing, keyProblem } from '../admin/photos';
 import { resolvePort } from '../admin/port';
 import { announce } from '../admin/push';
+import {
+  USER_DOC_COLLECTIONS,
+  USER_QUERY_COLLECTIONS,
+  processDeletion,
+} from '../admin/deletion';
 import { archiveList, eventForm } from '../admin/views';
 
 let failed = 0;
@@ -440,6 +445,90 @@ void (async () => {
   }) as unknown as typeof fetch;
   await announce(good, decision, { now: NOW, fetchImpl: counting });
   assert('aynı olay ikinci kez gönderilmiyor', calls === 0, `${calls} istek çıktı`);
+
+  // -------------------------------------------------------------------------
+  // Hesap silme — listedeki her koleksiyon gerçekten siliniyor mu
+  // -------------------------------------------------------------------------
+  //
+  // Bu iddianın sebebi: silinmeyen bir koleksiyon hiçbir belirti vermiyor.
+  // Kullanıcı "hesabım silindi" onayını görüyor, verisi duruyor, ve kimse
+  // fark etmiyor. Liste ile döngünün ayrışmasını kod zaten imkânsız kılıyor
+  // (`processDeletion` listeleri dolaşıyor); burada ölçülen, listenin
+  // KENDİSİNİN eksik olmaması.
+
+  /** `where(...).get()` ve `doc().delete()` destekleyen küçük bir Firestore. */
+  function silmeDb() {
+    const store = new Map<string, Map<string, Record<string, unknown>>>();
+    const col = (name: string) => {
+      if (!store.has(name)) store.set(name, new Map());
+      return store.get(name)!;
+    };
+    const api = {
+      collection(name: string) {
+        const c = col(name);
+        return {
+          doc(id: string) {
+            return {
+              async delete() {
+                c.delete(id);
+              },
+              async set(data: Record<string, unknown>, opts?: { merge?: boolean }) {
+                c.set(id, opts?.merge ? { ...(c.get(id) ?? {}), ...data } : data);
+              },
+            };
+          },
+          where(field: string, _op: string, value: unknown) {
+            return {
+              async get() {
+                const docs = [...c.entries()]
+                  .filter(([, d]) => d[field] === value)
+                  .map(([id]) => ({ id, ref: { delete: async () => void c.delete(id) } }));
+                return { docs };
+              },
+            };
+          },
+        };
+      },
+      _count: (name: string) => col(name).size,
+      _seed: (name: string, id: string, data: Record<string, unknown>) => col(name).set(id, data),
+    };
+    return api;
+  }
+
+  const UID = 'kullanici-1';
+  const silme = silmeDb();
+  // Her listelenen koleksiyona bu kullanıcıya ait birer kayıt.
+  for (const name of USER_DOC_COLLECTIONS) silme._seed(name, UID, { uid: UID });
+  for (const name of USER_QUERY_COLLECTIONS) silme._seed(name, `${name}-1`, { uid: UID });
+  // Ve başkasına ait birer kayıt: silme yalnızca kendi verisine dokunmalı.
+  for (const name of USER_QUERY_COLLECTIONS) silme._seed(name, `${name}-2`, { uid: 'baskasi' });
+
+  await processDeletion(silme as never, UID);
+
+  for (const name of [...USER_DOC_COLLECTIONS, ...USER_QUERY_COLLECTIONS]) {
+    const kalan = silme._count(name);
+    const beklenen = (USER_QUERY_COLLECTIONS as readonly string[]).includes(name) ? 1 : 0;
+    assert(
+      `silme ${name} koleksiyonuna dokunuyor`,
+      kalan === beklenen,
+      `${name}: ${kalan} kayıt kaldı, ${beklenen} bekleniyordu`,
+    );
+  }
+
+  // Profil ad, telefon ve doğum tarihi taşıyor: listeden düşerse KVKK ihlali.
+  assert(
+    'profil koleksiyonu listede',
+    (USER_DOC_COLLECTIONS as readonly string[]).includes('users'),
+  );
+  assert(
+    'kayıt ve çekiliş katılımı listede',
+    ['registrations', 'raffleEntries'].every((n) =>
+      (USER_QUERY_COLLECTIONS as readonly string[]).includes(n),
+    ),
+  );
+
+  // Talep "bitti" işaretleniyor — istemci onayı buradan okuyor.
+  assert('talep bitti olarak işaretleniyor', silme._count('deletionRequests') === 1);
 })().then(() => {
   // Çıkış burada: yukarıdaki blok asenkron, dosyanın sonunda çağrılsaydı
   // iddialar sayılmadan önce koşardı.

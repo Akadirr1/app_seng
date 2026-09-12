@@ -243,6 +243,72 @@ check(
 );
 
 check(
+  'Firebase Auth React Native kalıcılığı elde',
+  'Oturum kalıcılığı `getReactNativePersistence`e bağlı, ve o fonksiyon yalnızca ' +
+    '@firebase/auth\u2019un React Native derlemesinde var. `firebase/auth`\u2019un varsayılan ' +
+    'derlemesi tek satır (`export * from "@firebase/auth"`) ve Metro o iç içe isteği ' +
+    'react-native koşuluyla çözdüğü için cihazda doğru derleme yükleniyor. Koşul ' +
+    'kaybolursa kalıcılık sessizce belleğe düşer: oturum uygulama kapanınca ölür, ' +
+    'kullanıcı her açılışta yeniden giriş yapar ve sürüm derlemesinde konsol ' +
+    'olmadığı için hiçbir uyarı görünmez.',
+  () => {
+    const scoped = JSON.parse(read('node_modules/@firebase/auth/package.json'));
+    const cond = scoped.exports?.['.']?.['react-native'];
+    if (!cond) return '@firebase/auth artık react-native koşulu taşımıyor';
+
+    const rnEntry = String(cond.default ?? cond).replace(/^\.\//, '');
+    const rn = read(`node_modules/@firebase/auth/${rnEntry}`);
+    if (!/getReactNativePersistence/.test(rn)) {
+      return `@firebase/auth react-native derlemesi (${rnEntry}) getReactNativePersistence ihraç etmiyor`;
+    }
+
+    // Umbrella paket yalnızca yeniden ihraç ediyorsa Metro iç isteği kendi
+    // koşullarıyla çözüyor; gerçek bir derlemeye dönerse o zincir kopar.
+    const umbrella = read('node_modules/firebase/auth/dist/esm/index.esm.js');
+    if (!/export \* from ['"]@firebase\/auth['"]/.test(umbrella)) {
+      return 'firebase/auth artık @firebase/auth\u2019u yeniden ihraç etmiyor — kalıcılık zinciri koptu';
+    }
+
+    const strip = (src) => src.replace(/\/\*[\s\S]*?\*\/|\/\/.*/g, '');
+    const auth = strip(read('src/auth.ts'));
+    if (!/getReactNativePersistence\(/.test(auth) || !/initializeAuth\(/.test(auth)) {
+      return 'src/auth.ts kalıcılığı initializeAuth + getReactNativePersistence ile kurmuyor';
+    }
+    return null;
+  },
+);
+
+check(
+  'panelin yasal sayfaları giriş istemiyor',
+  'Play\u2019in şartı, uygulamaya erişemeyen kullanıcının hesabını WEB\u2019den ' +
+    'silebilmesi. Bu rotalar `app.use(requireAuth)`\u2019tan sonra kayıt edilirse ' +
+    'yönetici parolası isterler ve şart karşılanmaz — üstelik sayfa açılıyor ' +
+    'göründüğü için kimse fark etmez, giriş ekranına yönlendirir.',
+  () => {
+    // Yorumlar atılıyor: bu rotaların ÜSTÜNDEKİ açıklama `app.use(requireAuth)`
+    // metnini kelimesi kelimesine içeriyor ve ham metinde arayınca kontrol o
+    // yorumu buluyor — yani sıra doğruyken bile "sonra kayıtlı" diyordu.
+    // Ölçüldü. Bu defterde aynı tuzağın üç kaydı zaten var.
+    const strip = (src) => src.replace(/\/\*[\s\S]*?\*\/|\/\/.*/g, '');
+    const server = strip(read('admin/server.ts'));
+    const guard = server.indexOf('app.use(requireAuth)');
+    if (guard < 0) return 'admin/server.ts requireAuth ara yazılımını hiç kurmuyor';
+
+    for (const route of ["'/gizlilik'", "'/kosullar'", "'/hesap-sil'"]) {
+      const at = server.indexOf(route);
+      if (at < 0) return `admin/server.ts ${route} rotasını sunmuyor`;
+      if (at > guard) return `${route} requireAuth'tan SONRA kayıtlı — giriş ister`;
+    }
+    // Kimlik doğrulamadan silme talebi kabul etmek, bir e-postayı bilen
+    // herkese başkasının hesabını sildirmek olurdu.
+    if (!/verifyPassword\(/.test(server)) {
+      return 'web silme rotası parolayı doğrulamıyor';
+    }
+    return null;
+  },
+);
+
+check(
   'AI Gündem yapılandırması pakete gömülüyor',
   'Expo\u2019nun babel eklentisi `process.env.EXPO_PUBLIC_*` ifadesini ancak statik ' +
     'üye erişimi olarak GÖRÜRSE değeri pakete gömüyor. `process.env`\u2019i bir nesne ' +
