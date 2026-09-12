@@ -18,6 +18,25 @@ function rowWidths(path: string, size = 8): number[] {
   return grid.map((row) => row.filter(Boolean).length);
 }
 
+/**
+ * Her satırda kaç **ayrı** dolu parça var — `█ . ████ . █` üç, `████████` bir.
+ *
+ * Genişlik tek başına anatomiyi göremiyor: dolu bir dikdörtgen de, kolları
+ * ayrılmış bir gövde de aynı genişliği verebiliyor.
+ */
+function rowRuns(path: string, size = 8): number[] {
+  const grid = Array.from({ length: size }, () => Array(size).fill(false));
+  for (const m of path.matchAll(/M(-?\d+) (-?\d+)h(-?\d+)v(-?\d+)h(-?\d+)z/g)) {
+    const [x, y, w, h] = [+m[1], +m[2], +m[3], +m[4]];
+    for (let yy = y; yy < y + h; yy += 1) {
+      for (let xx = x; xx < x + w; xx += 1) {
+        if (grid[yy]?.[xx] !== undefined) grid[yy][xx] = true;
+      }
+    }
+  }
+  return grid.map((row) => row.filter((dolu, i) => dolu && !row[i - 1]).length);
+}
+
 describe('ICON yolları', () => {
   it('her glif en az bir piksel çiziyor', () => {
     for (const [ad, path] of Object.entries(ICON)) {
@@ -50,6 +69,20 @@ describe('ICON yolları', () => {
         return genislik < ust && genislik < alt;
       });
     expect(bogumlar).toEqual([]);
+  });
+
+  /**
+   * Gövdede kollar **ayrı** duruyor: en az bir satır kol · gövde · kol diye üç
+   * parçaya bölünmüş olmalı.
+   *
+   * Bu da bir kullanıcı bildirimi: boyun kalkınca alt üç satır dolu bir
+   * dikdörtgene indi ve figür "kolsuz" göründü. Satır genişliği bunu göremiyor
+   * — 8 genişliğindeki dolu bir satırla, kolları ayrılmış 6 piksellik bir satır
+   * genişlik kuralının ikisini de geçiyor.
+   */
+  it('user glifinde kollar gövdeden ayrı', () => {
+    const runs = rowRuns(ICON.user);
+    expect(Math.max(...runs)).toBeGreaterThanOrEqual(3);
   });
 
   it('user glifi baş ve gövdeyi boş satırla ayırıyor', () => {

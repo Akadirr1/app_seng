@@ -1078,3 +1078,14 @@ sayın** — sayaç, olmayan bir soruna yazılmış bir mekanizmaydı.
 - Kontrol `src/__tests__/icons.test.ts`'te ve eski yol geri konunca iki testi
   birden kırmızı verdi — ölçüldü. Bir glifi değerlendirmenin tek yolu onu
   basmak: testteki `rowWidths` aynı ayrıştırmayı yapıyor.
+- **Bir düzeltmenin ürettiği yeni şekil de bir şekil.** Boyun kalkınca alt üç
+  satır 8×3'lük dolu bir dikdörtgene indi ve aynı kullanıcı bu sefer "kolu yok,
+  özürlü duruyor" diye bildirdi: dolu bir blokta anatomi okunmuyor. Kollar artık
+  birer piksel, gövdeden birer piksellik boşlukla ayrı, ve gövdeden **bir satır
+  önce bitiyor** — bitmeselerdi üç paralel çubuk olurlardı, kol değil.
+- **Satır genişliği anatomiyi göremiyor.** Mevcut iki iddia (boğum yok, baş ile
+  gövde arasında boş satır) kolsuz dikdörtgende de yeşildi — ölçüldü: eski yol
+  geri konduğunda ikisi de geçti, yalnızca yeni iddia kırmızı verdi. `rowRuns`
+  satırdaki **ayrı parça** sayısını sayıyor: `████████` bir, `█ . ████ . █` üç.
+  Bir şekli koruyacak iddia, o şeklin bozulduğunda değişen şeyi ölçmeli;
+  genişlik burada o şey değildi.

@@ -20,17 +20,26 @@ export const ICON = {
   search: 'M2 1h2v1h-2z M1 2h1v2h-1z M4 2h1v2h-1z M2 4h2v1h-2z M5 5h1v1h-1z M6 6h2v2h-2z',
   check:
     'M6 1h2v1h-2z M5 2h1v1h-1z M4 3h1v1h-1z M3 4h1v1h-1z M2 5h1v1h-1z M1 4h1v1h-1z M0 3h1v1h-1z M1 5h1v1h-1z',
-  // Büst: baş, bir boşluk satırı, sonra omuzlar. Hesap sekmesinin ikonu —
-  // sette kişiyi anlatan başka bir glif yoktu ve `bell` artık bildirim
-  // ayarlarına ait.
+  // Figür: baş, bir boşluk satırı, tam genişlikte omuz, iki yanda inen kol ve
+  // ortada gövde. Hesap sekmesinin ikonu — sette kişiyi anlatan başka bir glif
+  // yoktu ve `bell` artık bildirim ayarlarına ait.
   //
-  // **Boyun çizilmiyor, ve bu bilinçli.** İlk hâlde baş ile omuz arasında iki
-  // piksellik bir boyun vardı; sekiz pikselde o dar öğe, altındaki geniş
-  // kütleyle birleşince istenmeyen bir siluet okutuyor ve kullanıcı bunu
-  // bildirdi. İki geniş parça arasında kalan dar bir öğe yok artık: baş, boş
-  // satır, omuz. Bu ızgarayı gözle değerlendirmenin tek yolu onu basmak —
-  // yolu okuyarak tahmin etmek bir kez yanlış çıktı.
-  user: 'M2 0h4v3h-4z M1 4h6v1h-6z M0 5h8v3h-8z',
+  // İki kullanıcı bildirimi bu çizimi belirledi, ikisi de aynı sebeple:
+  //
+  // **Boyun çizilmiyor.** İlk hâlde baş ile omuz arasında iki piksellik bir
+  // boyun vardı; sekiz pikselde o dar öğe, altındaki geniş kütleyle birleşince
+  // istenmeyen bir siluet okutuyordu. İki geniş parça arasında dar bir öğe yok
+  // artık: baş, boş satır, omuz.
+  //
+  // **Gövde tek parça bir kütle değil.** Boyun kalkınca alt üç satır 8×3'lük
+  // dolu bir dikdörtgene indi ve bu sefer "kolu yok" diye bildirildi — dolu bir
+  // blokta anatomi okunmuyor. Kollar birer piksel genişliğinde, gövdeden birer
+  // piksellik boşlukla ayrılmış ve gövdeden bir satır önce bitiyor: bitmeseler
+  // üç paralel çubuk olurlardı, kol değil.
+  //
+  // Bu ızgarayı gözle değerlendirmenin tek yolu onu basmak — yolu okuyarak
+  // tahmin etmek burada iki kez yanlış çıktı.
+  user: 'M2 0h4v3h-4z M0 4h8v1h-8z M0 5h1v2h-1z M2 5h4v3h-4z M7 5h1v2h-1z',
 } as const;
 
 export type IconName = keyof typeof ICON;
