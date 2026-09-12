@@ -10,7 +10,16 @@
  * temizler), ve her enterpolasyonun kaçırılmış olması.
  */
 import { parseServiceAccount } from '../admin/credentials';
-import { cookieHeader } from '../admin/session';
+import { csvCell } from '../admin/csv';
+import {
+  LOGIN_LOCK_MS,
+  LOGIN_MAX_FAILURES,
+  SESSION_SECONDS,
+  cookieHeader,
+  issueToken,
+  loginLimiter,
+  verifyToken,
+} from '../admin/session';
 import { isBucketMissing, keyProblem } from '../admin/photos';
 import { resolvePort } from '../admin/port';
 import { announce } from '../admin/push';
@@ -241,6 +250,55 @@ assert('sayı olmayan değer 4000’e düşüyor', resolvePort({ ADMIN_PORT: 'ab
 assert('sıfır kabul edilmiyor', resolvePort({ ADMIN_PORT: '0' }) === 4000);
 assert('aralık dışı kabul edilmiyor', resolvePort({ ADMIN_PORT: '70000' }) === 4000);
 assert('ondalık kabul edilmiyor', resolvePort({ ADMIN_PORT: '40.5' }) === 4000);
+
+// 12. CSV formül etkisizleştirme. Adı öğrenci yazıyor ve kural yalnızca
+//     uzunluğa bakıyor; `=`/`+`/`-`/`@` ile başlayan bir ad Excel'de formül
+//     olarak çalışır — dosyayı açan yöneticinin makinesinde. Tırnaklamak
+//     yetmiyor: tırnak içindeki `=` de formül sayılıyor.
+assert(
+  'formül başlangıcı etkisizleştiriliyor',
+  csvCell('=HYPERLINK("http://x")') === `"'=HYPERLINK(""http://x"")"`,
+  csvCell('=HYPERLINK("http://x")'),
+);
+assert('artı ile başlayan da', csvCell('+90 555').startsWith("'+"));
+assert('eksi ile başlayan da', csvCell('-2+3+cmd').startsWith("'-"));
+assert('@ ile başlayan da', csvCell('@SUM(A1)').startsWith("'@"));
+assert('düz metne dokunulmuyor', csvCell('Elif Yılmaz') === 'Elif Yılmaz');
+assert('virgül tırnaklanıyor', csvCell('a,b') === '"a,b"');
+assert('boş değer boş hücre', csvCell(undefined) === '' && csvCell(null) === '');
+
+// 13. Oturum jetonu: imzalı ve süreli. Eski jeton süreç ömrü boyunca sabitti,
+//     yani bir kez sızan çerez yeniden başlatmaya kadar geçerliydi.
+const secret = Buffer.from('x'.repeat(32));
+const t0 = 1_700_000_000_000;
+const token = issueToken(secret, t0);
+assert('taze jeton geçiyor', verifyToken(secret, token, t0 + 1000));
+assert('süresi dolan jeton düşüyor', !verifyToken(secret, token, t0 + SESSION_SECONDS * 1000 + 1));
+assert(
+  'imzası bozuk jeton düşüyor',
+  !verifyToken(secret, token.slice(0, -1) + (token.endsWith('0') ? '1' : '0'), t0 + 1000),
+);
+assert('başka gizle üretilen jeton düşüyor', !verifyToken(Buffer.from('y'.repeat(32)), token, t0 + 1000));
+assert('eski sabit jeton düşüyor', !verifyToken(secret, 'ok', t0));
+assert('boş jeton düşüyor', !verifyToken(secret, null, t0) && !verifyToken(secret, '', t0));
+assert('gelecek tarihli jeton düşüyor', !verifyToken(secret, issueToken(secret, t0 + 5000), t0));
+
+// 14. Giriş denemesi sınırı. Zaman-sabiti karşılaştırma deneme sayısını
+//     sınırlamaz; panel internete açık ve arkasında öğrenci numaraları var.
+let clock = t0;
+const limiter = loginLimiter(() => clock);
+for (let i = 0; i < LOGIN_MAX_FAILURES - 1; i += 1) limiter.fail('1.2.3.4');
+assert('sınırın altında kilit yok', limiter.lockedFor('1.2.3.4') === 0);
+limiter.fail('1.2.3.4');
+assert('sınırda kilitleniyor', limiter.lockedFor('1.2.3.4') > 0);
+assert('başka IP etkilenmiyor', limiter.lockedFor('5.6.7.8') === 0);
+clock += LOGIN_LOCK_MS + 1;
+assert('süre dolunca açılıyor', limiter.lockedFor('1.2.3.4') === 0);
+// Başarılı giriş sayacı sıfırlamalı: 9 hata + giriş + 1 hata kilit değil.
+for (let i = 0; i < LOGIN_MAX_FAILURES - 1; i += 1) limiter.fail('1.2.3.4');
+limiter.succeed('1.2.3.4');
+limiter.fail('1.2.3.4');
+assert('başarılı giriş sayacı sıfırlıyor', limiter.lockedFor('1.2.3.4') === 0);
 
 
 

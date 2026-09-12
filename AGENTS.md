@@ -938,3 +938,28 @@ Sonuçta sayaç hiç kullanılmadı: "iş öldü" bilgisi zaten sunucudan ilk ce
 `previous_attempt_failed` olarak geliyor, ve "şu an gerçekten deniyor muyuz"
 sorusunun cevabı `isFetching`. **Türetilecek bir durum ararken önce elde olanı
 sayın** — sayaç, olmayan bir soruna yazılmış bir mekanizmaydı.
+
+### Panel güvenlik taramasından — Strix çalıştırılamadı, elle okundu
+
+- **Docker soketi ve LLM anahtarı olmayan bir konteynerde Strix çalışmıyor;**
+  bulut yolu kaynak kodu üçüncü tarafa yüklüyor ve o karar operatörün. Bu tur
+  skill'in kendi listesi (rotalar, sink'ler, yetki kontrolleri, dışa aktarma)
+  elle izlendi. Aşağıdaki üç bulgu o okumadan.
+- **Aynı yardımcı fonksiyonun üç kopyası, bir düzeltmeyi ikisinde unutmanın
+  yoludur.** CSV hücresi `server.ts`'te iki kez, `export-registrations.ts`'te
+  bir kez yazılmıştı; üçü de tırnaklıyor, üçü de `=`/`+`/`-`/`@` ile başlayan
+  hücreyi olduğu gibi geçiriyordu. Adı öğrenci giriyor ve kural yalnızca
+  uzunluğa bakıyor, yani `=HYPERLINK(...)` geçerli bir ad — dosyayı açan
+  yöneticinin makinesinde çalışır. Tek `csvCell` (`admin/csv.ts`);
+  `check:release` üç yazıcının da ondan geçtiğini doğruluyor.
+- **Sabit bir oturum jetonu, süresi olmayan bir oturumdur.** Jeton sabit bir
+  metnin imzasıydı: herkese aynı değer, sunucuda eskimeyen tek şey. Çerezin
+  `Max-Age`'i tarayıcının verdiği söz, sunucunun değil. Veriliş zamanı artık
+  imzanın içinde (`issueToken`/`verifyToken`), sunucu yine hiçbir şey saklamıyor.
+- **Zaman-sabiti karşılaştırma deneme sayısını sınırlamaz.** `/login`'in
+  önünde hiçbir sayaç yoktu. IP başına 10 hata / 15 dakika, süreç içi
+  (`loginLimiter`); `req.ip` `trust proxy 1` sayesinde proxy'nin yazdığı adres.
+- **Kurallardaki kalan açık tasarımsal:** istemci kimliksiz, dolayısıyla
+  `registrations`'a spam yazılabilir (dokuz haneli numara uzayı) ve bir
+  etkinlik sahte kayıtla doldurulabilir. Kural bunu durduramaz; cevabı
+  Firebase App Check. Bu tur yapılmadı, bir satırlık iş değil.

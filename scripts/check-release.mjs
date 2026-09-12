@@ -220,6 +220,29 @@ check(
 );
 
 check(
+  'panel CSV hücresi ve oturumu saf modüllerden geçiyor',
+  'csvCell, verifyToken ve loginLimiter `check:panel` içinde sınanıyor — ama server.ts ' +
+    'yerel bir `cell` yazıp ya da jetonu yine sabit bir imza yapıp geri dönerse o sınavın ' +
+    'koruduğu bir şey kalmıyor. Formül enjeksiyonu ve sınırsız parola denemesi ikisi de ' +
+    'sessiz: dosya açılır, giriş çalışır, kimse bir hata görmez.',
+  () => {
+    // Yorumları at: server.ts kendi açıklamalarında eski jetonu ve `cell`i anıyor.
+    const strip = (src) => src.replace(/\/\*[\s\S]*?\*\/|\/\/.*/g, '');
+    const server = strip(read('admin/server.ts'));
+    const exporter = strip(read('scripts/export-registrations.ts'));
+    for (const name of ['csvCell', 'verifyToken', 'loginLimiter', 'issueToken']) {
+      if (!new RegExp(`\\b${name}\\(`).test(server)) return `admin/server.ts ${name}() kullanmıyor`;
+    }
+    if (/const cell = /.test(server)) return 'admin/server.ts yerel bir CSV hücre fonksiyonu taşıyor';
+    if (/sign\('ok'\)/.test(server)) return 'admin/server.ts oturum jetonunu yine sabit bir imzayla üretiyor';
+    if (/function csvCell/.test(exporter) || !/\bcsvCell\b/.test(exporter)) {
+      return 'scripts/export-registrations.ts paylaşılan csvCell fonksiyonunu kullanmıyor';
+    }
+    return null;
+  },
+);
+
+check(
   'AI Gündem yapılandırması pakete gömülüyor',
   'Expo\u2019nun babel eklentisi `process.env.EXPO_PUBLIC_*` ifadesini ancak statik ' +
     'üye erişimi olarak GÖRÜRSE değeri pakete gömüyor. `process.env`\u2019i bir nesne ' +

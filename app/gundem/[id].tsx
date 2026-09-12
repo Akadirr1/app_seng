@@ -242,7 +242,8 @@ export default function GundemArticleRoute() {
         <PrimaryButton
           label="Kaynağa git"
           onPress={() => {
-            void Linking.openURL(article.url);
+            // Adres RSS'ten geliyor; `tel:`/`intent:` gibi bir şema tarayıcı yerine başka bir uygulamayı açar.
+            if (/^https?:\/\//i.test(article.url)) void Linking.openURL(article.url);
           }}
           style={styles.cta}
         />
