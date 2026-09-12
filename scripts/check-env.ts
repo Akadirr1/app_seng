@@ -13,7 +13,7 @@
  * `check:all`'a BİLEREK dâhil değil: ortam değişkenleri makineye özgü, ve
  * onları CI benzeri bir koşumda zorunlu kılmak her koşumu kırardı.
  */
-import { readFileSync, readdirSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 
 import './load-env';
@@ -21,7 +21,7 @@ import './load-env';
 const root = join(import.meta.dirname, '..');
 
 /** Değeri olmayabilir; kodun kendi varsayılanı var. */
-const OPTIONAL = new Set([
+const OPTIONAL: Set<string> = new Set([
   'EXPO_PUBLIC_FIREBASE_MEASUREMENT_ID',
   'EXPO_PUBLIC_AIGUNDEM_DATA_MODE',
   'SUPABASE_STORAGE_BUCKET',
@@ -69,13 +69,22 @@ for (const ad of ['SMTP_HOST', 'SMTP_PORT', 'SMTP_USER', 'SMTP_PASS', 'MAIL_FROM
 let eksik = 0;
 const ortak = [...app].filter((ad) => panel.has(ad));
 
+// Yerelde servis hesabı bir DOSYA olabiliyor: `parseServiceAccount` değer
+// verilmediğinde `./service-account.json`'a düşüyor. Dosya duruyorken
+// "EKSİK" demek yanlış alarm — ve yanlış alarm veren bir kontrol, okunmayan
+// bir kontrole dönüşüyor. Sunucuda dosya olmadığı için orada yine eksik.
+const servisHesabiDosyasi = existsSync(join(root, 'service-account.json'));
+if (servisHesabiDosyasi) OPTIONAL.add('FIREBASE_SERVICE_ACCOUNT');
+
 function rapor(baslik: string, nerede: string, adlar: Set<string>) {
   console.log(`\n${baslik}  ${nerede}`);
   for (const ad of [...adlar].sort()) {
     const deger = (process.env[ad] ?? '').trim();
     const not = ortak.includes(ad) ? '  ← tek ortak değer, iki yere de girilecek' : '';
     if (deger) console.log(`  ✓ ${ad}${not}`);
-    else if (OPTIONAL.has(ad)) console.log(`  · ${ad}  (isteğe bağlı — kodun varsayılanı var)`);
+    else if (ad === 'FIREBASE_SERVICE_ACCOUNT' && servisHesabiDosyasi) {
+      console.log(`  · ${ad}  (yerelde ./service-account.json okunuyor — SUNUCUDA GEREKLİ)`);
+    } else if (OPTIONAL.has(ad)) console.log(`  · ${ad}  (isteğe bağlı — kodun varsayılanı var)`);
     else {
       console.log(`  ✗ ${ad}  EKSİK${not}`);
       eksik += 1;
