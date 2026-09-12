@@ -99,6 +99,10 @@ graph queries first (`graphify query`, `path`, `explain`), file scans second.**
   varsayılanı (`Claude <noreply@anthropic.com>`) değil, deponun sahibi olacak.
   Konteyner her oturumda sıfırlandığı için ilk commit'ten önce ayarlayın:
   `git config user.name Akadirr1 && git config user.email akadirr41@gmail.com`.
+- **Force push gerekiyorsa ÖNCE söyleyin.** Geçmişi yeniden yazmak (yazar
+  değiştirmek dâhil) SHA'ları değiştiriyor ve karşı taraf `git pull` dediğinde
+  "ıraksak dallar" hatası alıyor. Bir kez uyarısız yapıldı; kurtarma komutu
+  `git reset --hard origin/<dal>` ama bunu önceden bilmek gerekiyor.
 - **Do not work around the environment's network policy.** If something is unreachable,
   say it is unreachable. Never assert an outcome you did not observe.
 - **Keys:** only publishable/anon keys reach the app; service-role and Supabase secret
@@ -1202,6 +1206,15 @@ sayın** — sayaç, olmayan bir soruna yazılmış bir mekanizmaydı.
   adından herkese posta gönderilebilen bir kapı olurdu — hız sınırı da
   kurbanın adresine değil isteği atana bağlanamazdı. `verifyIdToken`'dan gelen
   `uid` + `email` ile hem kurban seçilemiyor hem de sayaç doğru yere yazılıyor.
+- **Ortam raporu "panel" derken `scripts/`'i saymamalı.** `env:check` ilk
+  hâlinde `admin/` ile `scripts/`'i birlikte tarıyordu, ve `check-bundle` ile
+  `check-release` `EXPO_PUBLIC_AIGUNDEM_*` adlarını **pakette aramak için**
+  geçiriyor. Sonuç: rapor Coolify'a AI Gündem anahtarları girilmesi
+  gerekiyormuş gibi görünüyordu ve operatör "niye her şeyi iki kez giriyorum"
+  diye sordu — haklıydı, çünkü rapor yanlış söylüyordu. Gerçekte iki yere
+  birden girilen **tek** değer var (`EXPO_PUBLIC_FIREBASE_API_KEY`) ve rapor
+  artık onu adıyla işaretliyor. Bir aracın adı bir şeyi kapsıyor diye onu
+  taramaya katmayın; neyin dağıtıldığına bakın.
 - **Cloud Function bu projede bir seçenek değil.** Dışarıdan gelen her tasarım
   önerisi OTP'yi bir Cloud Function'a koyuyor; deponun iki ayrı maddesi zaten
   yazıyor: dağıtmak Blaze istiyor, proje Spark'ta. Panel (Express + Admin SDK)

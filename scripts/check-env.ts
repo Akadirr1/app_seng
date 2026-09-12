@@ -52,7 +52,13 @@ function sources(dirs: string[], pattern: RegExp): Set<string> {
 }
 
 const app = sources(['src', 'app'], /process\.env\.(EXPO_PUBLIC_[A-Z0-9_]+)/g);
-const panel = sources(['admin', 'scripts'], /process\.env\.([A-Z0-9_]+)/g);
+
+// YALNIZCA `admin/`. `scripts/` buraya girmiyor ve bu bir ayrıntı değil:
+// `check-bundle` ile `check-release` `EXPO_PUBLIC_AIGUNDEM_*` adlarını
+// GEÇİYOR ama onları pakette ARAMAK için — panelin o değerlere ihtiyacı yok.
+// Taramaya dâhil edildiklerinde rapor, Coolify'a AI Gündem anahtarları
+// girilmesi gerekiyormuş gibi görünüyordu.
+const panel = sources(['admin'], /process\.env\.([A-Z0-9_]+)/g);
 
 // SMTP ayarları `readMailConfig`'e parametre olarak geçiyor, yani
 // `process.env.SMTP_HOST` diye bir satır yok — tarama onları göremez.
@@ -61,29 +67,41 @@ for (const ad of ['SMTP_HOST', 'SMTP_PORT', 'SMTP_USER', 'SMTP_PASS', 'MAIL_FROM
 }
 
 let eksik = 0;
+const ortak = [...app].filter((ad) => panel.has(ad));
 
 function rapor(baslik: string, nerede: string, adlar: Set<string>) {
   console.log(`\n${baslik}  ${nerede}`);
   for (const ad of [...adlar].sort()) {
     const deger = (process.env[ad] ?? '').trim();
-    const istege = OPTIONAL.has(ad);
-    if (deger) console.log(`  ✓ ${ad}`);
-    else if (istege) console.log(`  · ${ad}  (isteğe bağlı — kodun varsayılanı var)`);
+    const not = ortak.includes(ad) ? '  ← tek ortak değer, iki yere de girilecek' : '';
+    if (deger) console.log(`  ✓ ${ad}${not}`);
+    else if (OPTIONAL.has(ad)) console.log(`  · ${ad}  (isteğe bağlı — kodun varsayılanı var)`);
     else {
-      console.log(`  ✗ ${ad}  EKSİK`);
+      console.log(`  ✗ ${ad}  EKSİK${not}`);
       eksik += 1;
     }
   }
 }
 
-rapor('UYGULAMA', '— EAS environment + yerelde .env / .env.local', app);
-rapor('PANEL', '— sunucuda Coolify, yerelde .env / .env.local', panel);
+rapor('UYGULAMA', '→ EAS environment', app);
+rapor('PANEL', '→ Coolify', panel);
 
-console.log(
-  '\nUygulama değerleri DERLEME ANINDA gömülüyor: EAS\'ta değiştirmek koşan\n' +
-    'uygulamayı değiştirmiyor, yeni derleme gerekiyor. Panel değerleri süreç\n' +
-    'başlarken okunuyor: değiştirince redeploy gerekiyor.',
-);
+console.log(`
+Üç yer var, ve listeler BÜYÜK ÖLÇÜDE AYRIK:
+
+  .env / .env.local (bu makine)  ikisi de buradan okuyor, hepsi burada
+  EAS environment                yalnızca yukarıdaki UYGULAMA listesi
+  Coolify                        yalnızca yukarıdaki PANEL listesi
+
+İki yere birden girilen tek değer: ${ortak.join(', ') || '(yok)'}.
+Sebebi, web'den hesap silme sayfasının parolayı Identity Toolkit ile
+doğrulaması — Admin SDK parola doğrulayamıyor. Geri kalan hiçbir değer
+tekrarlanmıyor: uygulama servis hesabını ve SMTP parolasını hiç görmüyor,
+panel de Firebase istemci yapılandırmasını.
+
+Uygulama değerleri DERLEME ANINDA gömülüyor: EAS'ta değiştirmek koşan
+uygulamayı değiştirmiyor, yeni derleme gerekiyor. Panel değerleri süreç
+başlarken okunuyor: değiştirince redeploy gerekiyor.`);
 
 console.log(eksik ? `\n${eksik} değişken eksik.` : '\nEksik yok.');
 process.exit(eksik ? 1 : 0);
