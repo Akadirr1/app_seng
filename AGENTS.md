@@ -1215,6 +1215,17 @@ sayın** — sayaç, olmayan bir soruna yazılmış bir mekanizmaydı.
   birden girilen **tek** değer var (`EXPO_PUBLIC_FIREBASE_API_KEY`) ve rapor
   artık onu adıyla işaretliyor. Bir aracın adı bir şeyi kapsıyor diye onu
   taramaya katmayın; neyin dağıtıldığına bakın.
+- **200 tek başına başarı değil, ve `fetch` yönlendirmeyi sessizce takip
+  ediyor.** Uç noktayı tanımayan panel isteği `app.use(requireAuth)`'a düşürüp
+  `/login`'e yönlendiriyor; `fetch` oraya gidiyor ve elimize **200 + HTML**
+  geliyor. Gövdeye bakmayan istemci bunu "kod gönderildi" saydı: ekranda
+  "Kodu e-postana gönderdik" yazarken hiçbir posta gönderilmemişti, ve
+  `curl -i` olmadan bu ayırt edilemiyordu (cevap `302 … location: /login`).
+  Bu, defterdeki "tanınmayan gövdeyi veri saymayın" maddesinin ters yönü:
+  orada tanınmayan gövde veriyi ÇÖPE atıyordu, burada YOK olanı VAR sayıyor.
+  `cagir()` artık gövdenin JSON olduğunu ve `durum` taşıdığını şart koşuyor;
+  `src/__tests__/otp.test.ts` 200+HTML ve tanınmayan JSON için ayrı ayrı
+  kırmızı veriyor (eski hâl geri konup ölçüldü).
 - **Yalnızca hatayı yazan bir log, "hiç çalışmadı" gibi okunuyor.**
   `/api/hesap/kod` başarılı gönderimde hiçbir şey yazmıyordu; kullanıcı "kod
   gelmedi" dediğinde operatör loga bakıp **boş** buluyor ve bunu "istek

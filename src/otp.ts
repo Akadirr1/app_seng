@@ -31,6 +31,7 @@ export type OtpError =
   | 'telefon_kullanimda'
   | 'numara_kullanimda'
   | 'panel_yok'
+  | 'panel_eski'
   | 'aglar';
 
 export class OtpHata extends Error {
@@ -66,14 +67,29 @@ async function cagir(yol: string, govde: Record<string, unknown>): Promise<Recor
     throw new OtpHata('aglar');
   }
 
-  const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+  // Gövde JSON DEĞİLSE `null`, boş nesne değil — ikisini ayırmak şart.
+  let data: Record<string, unknown> | null = null;
+  try {
+    data = (await res.json()) as Record<string, unknown>;
+  } catch {
+    data = null;
+  }
+
   if (!res.ok) {
     throw new OtpHata(
-      (data.hata as OtpError) ?? 'aglar',
-      typeof data.saniye === 'number' ? data.saniye : undefined,
-      typeof data.kalan === 'number' ? data.kalan : undefined,
+      (data?.hata as OtpError) ?? 'aglar',
+      typeof data?.saniye === 'number' ? data.saniye : undefined,
+      typeof data?.kalan === 'number' ? data.kalan : undefined,
     );
   }
+
+  // ASIL MESELE: 200 tek başına başarı demek değil. Uç noktayı tanımayan bir
+  // panel isteği giriş duvarına düşürüp `/login`'e yönlendiriyor, `fetch`
+  // yönlendirmeyi kendiliğinden takip ediyor ve elimize 200 + HTML geliyor.
+  // Gövdeye bakmayan eski hâl bunu "kod gönderildi" sayıyordu: kullanıcı
+  // hiç gönderilmemiş bir postayı bekliyordu. Ölçüldü — cihazda tam olarak
+  // bu yaşandı, panel main'de kalmıştı.
+  if (!data || typeof data.durum !== 'string') throw new OtpHata('panel_eski');
   return data;
 }
 
@@ -131,6 +147,8 @@ export function otpMesaj(err: unknown): string {
       return 'Posta gönderilemedi. Kulüple iletişime geçebilirsin: info@kouseng.com';
     case 'panel_yok':
       return 'Uygulama yapılandırması eksik; bu sürümde doğrulama yapılamıyor.';
+    case 'panel_eski':
+      return 'Sunucu bu isteği tanımadı. Panel güncellenmemiş olabilir — info@kouseng.com adresine yazabilirsin.';
     case 'oturum_yok':
       return 'Oturumun düşmüş görünüyor. Tekrar giriş yap.';
     case 'eposta_yok':
