@@ -16,7 +16,10 @@ import type { Express, Request, Response } from 'express';
 import { getAuth } from 'firebase-admin/auth';
 import type { Firestore } from 'firebase-admin/firestore';
 
+import { FieldValue } from 'firebase-admin/firestore';
+
 import { STUDENT_NO_RE, normalizePhone } from '../src/accountSchema';
+import { loginLimiter } from './session';
 import { claimIdentity, type Kimlik } from './claims';
 import { sendMail, mailReady } from './mail';
 import { otpMail } from './mailTemplate';
@@ -29,6 +32,21 @@ import {
 } from './otp';
 
 const OTP_COLLECTION = 'emailOtp';
+
+/**
+ * IP başına posta sınırı — hesap başına olan sınırın kapatamadığı delik.
+ *
+ * `decideSend` bir hesabın saatte 5 postayla sınırlı olmasını sağlıyor, ama
+ * **hesap açmak bedava**: elli hesap açan biri kulübün alan adından 250 posta
+ * gönderebilir, ve bedeli alan adının itibarı olur. Sayaç bu yüzden istekle
+ * birlikte gelen IP'ye de bağlı.
+ *
+ * `req.ip` ters proxy'nin yazdığı adres (`trust proxy 1`), yani Cloudflare
+ * arkasında gerçek istemci adresi.
+ */
+const KOD_MAX = 20;
+const KOD_PENCERE_MS = 60 * 60_000;
+const kodLimiti = loginLimiter(Date.now, KOD_MAX, KOD_PENCERE_MS);
 
 /** `Authorization: Bearer …` başlığından jetonu çıkarır. */
 function bearer(req: Request): string | null {
@@ -79,6 +97,11 @@ export function registerAccountApi(app: Express, db: Firestore): void {
     if (kim.dogrulanmis) return res.json({ durum: 'zaten_dogrulandi' });
     if (!kim.email) return res.status(400).json({ hata: 'eposta_yok' });
 
+    const kilit = kodLimiti.lockedFor(req.ip ?? '');
+    if (kilit > 0) {
+      return res.status(429).json({ hata: 'cok_fazla', saniye: Math.ceil(kilit / 1000) });
+    }
+
     if (!mailReady()) {
       // Sessizce "gönderildi" demek, kullanıcıyı gelmeyecek bir postayı
       // beklemeye mahkûm ederdi.
@@ -110,6 +133,7 @@ export function registerAccountApi(app: Express, db: Firestore): void {
           (sonuc.rejected.length ? ` · RED: ${sonuc.rejected.join(', ')}` : '') +
           ` · zarf göndereni: ${sonuc.envelopeFrom}`,
       );
+      kodLimiti.fail(req.ip ?? '');
       if (!sonuc.accepted.length) {
         // Sunucu bağlantıyı kabul edip alıcıyı reddettiğinde `sendMail`
         // fırlatmıyor. İstemciye "gönderildi" demek yanlış olurdu.
@@ -137,7 +161,8 @@ export function registerAccountApi(app: Express, db: Firestore): void {
     if (!kim) return;
     if (kim.dogrulanmis) return res.json({ durum: 'zaten_dogrulandi' });
 
-    const code = String((req.body as Record<string, unknown>)?.code ?? '').trim();
+    const govde0 = (req.body ?? {}) as Record<string, unknown>;
+    const code = String(govde0.code ?? '').trim();
     const ref = db.collection(OTP_COLLECTION).doc(kim.uid);
     const kayit = await otpOku(db, kim.uid);
 
@@ -146,7 +171,12 @@ export function registerAccountApi(app: Express, db: Firestore): void {
       // Yanlış denemeler sayılıyor; süresi dolmuş ya da hiç olmayan kodda
       // sayacı artırmak anlamsız (artıracak bir kayıt da yok).
       if (karar.reason === 'yanlis' && kayit) {
-        await ref.update({ attempts: kayit.attempts + 1 });
+        // `attempts + 1` DEĞİL: iki eşzamanlı yanlış deneme aynı değeri okur
+        // ve ikisi de 1 yazar, yani beş denemelik tavan paralel isteklerle
+        // aşılabilirdi. Bu, deponun "increment kullanma" maddesinin TERSİ
+        // durum — orada yeniden denenen idempotent bir yazma sayıyı
+        // şişiriyordu, burada her deneme gerçekten sayılmalı.
+        await ref.update({ attempts: FieldValue.increment(1) });
       }
       return res.status(400).json({ hata: karar.reason, kalan: karar.kalan });
     }
@@ -155,7 +185,7 @@ export function registerAccountApi(app: Express, db: Firestore): void {
     // düzeltme. İstemcinin gönderdiğine körü körüne güvenilmiyor, ikisi de
     // burada yeniden doğrulanıyor.
     const kullanici = (await db.collection('users').doc(kim.uid).get()).data() ?? {};
-    const govde = req.body as Record<string, unknown>;
+    const govde = govde0;
 
     const telefonHam = String(govde.telefon ?? kullanici.telefon ?? '');
     const ogrenciHam = String(govde.ogrenciNo ?? kullanici.ogrenciNo ?? '').trim();

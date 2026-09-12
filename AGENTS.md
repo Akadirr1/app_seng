@@ -1215,6 +1215,18 @@ sayın** — sayaç, olmayan bir soruna yazılmış bir mekanizmaydı.
   birden girilen **tek** değer var (`EXPO_PUBLIC_FIREBASE_API_KEY`) ve rapor
   artık onu adıyla işaretliyor. Bir aracın adı bir şeyi kapsıyor diye onu
   taramaya katmayın; neyin dağıtıldığına bakın.
+- **Hesap başına sınır, hesap açmak bedavayken sınır değildir.** `decideSend`
+  bir hesabı saatte 5 postayla sınırlıyor; elli hesap açan biri kulübün alan
+  adından 250 posta gönderebiliyordu ve bedeli alan adının itibarı olurdu.
+  Sayaç artık IP'ye de bağlı (`loginLimiter` parametreli hâle getirildi, aynı
+  test edilmiş kod farklı tavanla).
+- **`attempts + 1` eşzamanlı denemede tavanı aşılabilir kılıyor.** İki paralel
+  yanlış kod isteği aynı değeri okuyup ikisi de `1` yazıyor, yani beş denemelik
+  sınır paralelleştirilerek delinebiliyordu. `FieldValue.increment(1)` bunun
+  doğrusu — **ve bu, bu defterdeki "increment kullanma" maddesinin TERSİ
+  durum**: orada yeniden denenen idempotent bir yazma sayıyı şişiriyordu,
+  burada her deneme gerçekten sayılmak zorunda. Kuralı ezberlemeyin, hangi
+  riske karşı yazıldığına bakın.
 - **200 tek başına başarı değil, ve `fetch` yönlendirmeyi sessizce takip
   ediyor.** Uç noktayı tanımayan panel isteği `app.use(requireAuth)`'a düşürüp
   `/login`'e yönlendiriyor; `fetch` oraya gidiyor ve elimize **200 + HTML**
