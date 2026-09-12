@@ -347,6 +347,87 @@ check(
 );
 
 check(
+  'doğrulama kodu zinciri bağlı',
+  'Ekranın var olması, ona gidilebildiği anlamına gelmiyor — bu depoda giriş ' +
+    'ekranları bir kez yazılıp hiçbir yerden bağlanmamıştı. Doğrulanmamış hesap ' +
+    'etkinliğe katılamadığı için kopan bir halkanın belirtisi "katılamıyorum" ' +
+    'olur ve sebebi görünmez.',
+  () => {
+    const strip = (src) => src.replace(/\/\*[\s\S]*?\*\/|\/\/.*/g, '');
+
+    if (!existsSync(join(root, 'app/dogrula.tsx'))) return 'app/dogrula.tsx yok';
+    if (!/name="dogrula"/.test(read('app/_layout.tsx'))) {
+      return 'dogrula rotası kök yığına kayıtlı değil';
+    }
+
+    const kayit = strip(read('app/kayit-ol.tsx'));
+    if (!/['"]\/dogrula['"]/.test(kayit)) {
+      return 'kayıt formu bitince doğrulama ekranına gitmiyor';
+    }
+
+    const hesap = strip(read('app/(tabs)/hesap.tsx'));
+    if (!/['"]\/dogrula['"]/.test(hesap)) {
+      return 'hesap sekmesindeki doğrulama kartı /dogrula\'ya bağlanmıyor';
+    }
+
+    // ASIL MESELE: Firebase'in kendi doğrulama postası geri gelmemeli.
+    // Gönderen `noreply@<proje>.firebaseapp.com` — kulübün olmayan bir alan
+    // adı, SPF/DKIM hizalanmıyor ve posta spam'e düşüyor. Belirti sessiz:
+    // kullanıcı "kod gelmedi" der, biz "gönderdik" görürüz.
+    const auth = strip(read('src/auth.ts'));
+    if (/sendEmailVerification/.test(auth)) {
+      return 'src/auth.ts hâlâ Firebase doğrulama postası gönderiyor';
+    }
+    return null;
+  },
+);
+
+check(
+  'hesap uç noktaları giriş duvarının önünde',
+  'Bu rotaları çağıran öğrencinin kendisi; yönetici parolası isteyemezler. ' +
+    '`app.use(requireAuth)` sonrasına düşerlerse uygulama kod isteyemez ve ' +
+    'hiçbir hesap doğrulanamaz.',
+  () => {
+    const strip = (src) => src.replace(/\/\*[\s\S]*?\*\/|\/\/.*/g, '');
+    const server = strip(read('admin/server.ts'));
+    const guard = server.indexOf('app.use(requireAuth)');
+    if (guard < 0) return 'admin/server.ts requireAuth ara yazılımını hiç kurmuyor';
+
+    const at = server.indexOf('registerAccountApi(app');
+    if (at < 0) return 'admin/server.ts hesap uç noktalarını hiç kurmuyor';
+    if (at > guard) return 'hesap uç noktaları requireAuth\'tan SONRA kayıtlı';
+
+    // JSON gövde ayrıştırıcısı olmadan `req.body` undefined kalır ve kod hep
+    // "yanlış" görünür — hata mesajı sebebi hiç söylemez.
+    if (!/express\.json\(/.test(server)) return 'admin/server.ts JSON gövdeyi ayrıştırmıyor';
+
+    const api = strip(read('admin/accountApi.ts'));
+    // Jetonu doğrulamayan bir uç nokta, gövdedeki uid'e güvenmek demek:
+    // herkes herkesin hesabını doğrulanmış yapabilirdi.
+    if (!/verifyIdToken\(/.test(api)) return 'hesap uç noktaları kimlik jetonunu doğrulamıyor';
+    return null;
+  },
+);
+
+check(
+  'teklik ve kod kayıtları istemciye kapalı',
+  '`emailOtp` deneme sayacını taşıyor: istemciye açık olsaydı kullanıcı kendi ' +
+    'sayacını sıfırlar ve beş deneme sınırı diye bir şey kalmazdı. ' +
+    '`phoneClaims`/`studentClaims` doküman kimliği olarak telefon ve öğrenci ' +
+    'numarası taşıyor — okunabilmeleri doğrudan bir kişisel veri sızıntısı.',
+  () => {
+    for (const koleksiyon of ['emailOtp', 'phoneClaims', 'studentClaims']) {
+      const blok = rulesBlock(koleksiyon);
+      if (!blok) return `firestore.rules ${koleksiyon} bloğunu tanımlamıyor`;
+      if (!/allow read, write: if false;/.test(blok)) {
+        return `${koleksiyon} istemciye kapalı değil`;
+      }
+    }
+    return null;
+  },
+);
+
+check(
   'AI Gündem yapılandırması pakete gömülüyor',
   'Expo\u2019nun babel eklentisi `process.env.EXPO_PUBLIC_*` ifadesini ancak statik ' +
     'üye erişimi olarak GÖRÜRSE değeri pakete gömüyor. `process.env`\u2019i bir nesne ' +

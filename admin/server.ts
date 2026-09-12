@@ -74,6 +74,8 @@ import {
   pushLogId,
 } from '../src/pushPolicy';
 import { startDeletionSweeper } from './deletion';
+import { registerAccountApi } from './accountApi';
+import { initMail } from './mail';
 import { deleteAccountPage, privacyPage, termsPage } from './legal';
 import { resolvePort } from './port';
 import { verifyPassword } from './webAuth';
@@ -121,6 +123,9 @@ const app = express();
 // `1`: yalnızca en yakın proxy'ye güven — istemcinin uydurduğu başlığa değil.
 app.set('trust proxy', 1);
 app.use(express.urlencoded({ extended: false }));
+// Uygulamanın çağırdığı uç noktalar JSON konuşuyor. Sınır düşük: bu gövdeler
+// yalnızca bir kod ve iki numara taşıyor.
+app.use(express.json({ limit: '8kb' }));
 
 /**
  * Görsel yükleme. Bellekte tutuluyor: dosyalar küçültülüp Storage'a gidiyor,
@@ -289,6 +294,10 @@ app.post('/hesap-sil', async (req, res) => {
     );
   }
 });
+
+// Uygulamanın hesap uç noktaları. Kimliği yönetici parolası değil, çağıranın
+// Firebase kimlik jetonu belirliyor — bu yüzden giriş duvarının önünde.
+registerAccountApi(app, db);
 
 app.use(requireAuth);
 
@@ -1135,6 +1144,15 @@ app.listen(PORT, () => {
     autoPushEnabled()
       ? '[push] otomatik bildirim AÇIK. Kapatmak için ADMIN_AUTO_PUSH=off.'
       : '[push] otomatik bildirim KAPALI (ADMIN_AUTO_PUSH=off).',
+  );
+  // Posta da açılışta söyleniyor, aynı gerekçeyle: yapılandırılmamış SMTP'nin
+  // tek belirtisi "kod gelmiyor" olurdu ve o, operatörün bakmadığı yerde kalır.
+  const posta = initMail(process.env);
+  console.log(
+    posta.ok
+      ? '[posta] SMTP hazır — doğrulama kodları gönderilebiliyor.'
+      : `[posta] SMTP YAPILANDIRILMAMIŞ (eksik: ${posta.eksik.join(', ')}). ` +
+        'Doğrulama kodu gönderilemez, hesaplar doğrulanamaz.',
   );
   // Sessiz saatlerde biriken bildirimleri sabah gönderen zamanlayıcı.
   startPushFlusher(db);

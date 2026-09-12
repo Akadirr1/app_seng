@@ -1089,3 +1089,60 @@ sayın** — sayaç, olmayan bir soruna yazılmış bir mekanizmaydı.
   satırdaki **ayrı parça** sayısını sayıyor: `████████` bir, `█ . ████ . █` üç.
   Bir şekli koruyacak iddia, o şeklin bozulduğunda değişen şeyi ölçmeli;
   genişlik burada o şey değildi.
+
+### Doğrulama postası, teklik ve OTP
+
+- **Firebase Auth'un doğrulama postasının spam'e düşmesi şablon sorunu
+  değil, alan adı sorunu.** Gönderen `noreply@<proje>.firebaseapp.com` ve o
+  alan adı kulübün değil, dolayısıyla `kouseng.com` için yayımlanan SPF/DKIM
+  ile hizalanmıyor. Şablonu güzelleştirmek bunu düzeltmiyor; gönderenin
+  değişmesi gerekiyor. (Console → Authentication → Templates → SMTP settings
+  ile Firebase'in kendi postası da kulübün sunucusundan gönderilebiliyor —
+  parola sıfırlama hâlâ oradan gittiği için bu ayar yine de yapılmalı.)
+- **`emailVerified` yalnızca Firebase'in kendi bağlantısıyla ya da Admin SDK
+  ile değişiyor.** Kendi kodumuzla doğrulamanın tek yolu sunucuda
+  `updateUser(uid, {emailVerified:true})`. Ve istemcinin jetonu bayat kalıyor:
+  `reload()` + `getIdToken(true)` çağrılmazsa uygulama doğrulanmış hesabı
+  doğrulanmamış görmeye devam ediyor — belirti "doğruladım ama hâlâ
+  katılamıyorum".
+- **Doküman kimliği `uid` olmayan koleksiyon, silme yoklayıcısının listesine
+  giremiyor.** `phoneClaims/{telefon}` ve `studentClaims/{ogrenciNo}`
+  kimliklerini değerin kendisinden alıyor, yani ne `USER_DOC_COLLECTIONS`'a ne
+  de `uid` ile sorgulanan listeye uyuyorlar. Atlansaydı hesap silinmiş
+  görünür, ama aynı kişi bir daha kayıt olamazdı: numarası sonsuza kadar
+  kilitli kalırdı ve bunu kimse bir hata olarak bildirmezdi. Serbest bırakma
+  profil **okunduktan sonra, silinmeden önce** olmak zorunda — hangi değerler
+  olduğu yalnızca orada yazıyor.
+- **Tek bir hız sınırı iki işi görmüyor.** 60 saniyelik yeniden gönderim
+  beklemesi düğmeye üst üste basmayı engelliyor ama saatte 60 posta demek;
+  saatlik tavan olmadan biri başkasının kutusunu doldurabilir. İki sınır ayrı
+  sebeplerle var ve ikisi de gerekiyor.
+- **Doğrulamada sıra: önce kilit ve süre, sonra yanlış kod.** Tersi olsaydı
+  süresi dolmuş kodu giren kullanıcı "kod yanlış" görür ve doğru kodu aramaya
+  başlardı — oysa yapması gereken yeni kod istemek. Kontrol `check:panel`'de
+  ve sıra değiştirilince kırmızı verdiği ölçüldü.
+- **Çakışma kodu tüketmemeli, ve düzeltme aynı ekranda olmalı.** Telefon ya da
+  numara başkasındaysa kullanıcı onu değiştirmek zorunda, ama profili
+  düzenleyen bir ekran yok. Olmayan bir ekrana yönlendirmek hesabı kalıcı
+  olarak doğrulanamaz bırakırdı; doğrulama ekranı çakışan alanı kendisi açıyor
+  ve kod hâlâ geçerli olduğu için tek posta yetiyor.
+- **React 19 efektleri geliştirme kipinde iki kez çalıştırıyor**, ve "ekran
+  açılınca kod iste" bunu doğrudan hissediyor: ikinci çağrı sunucudan "60
+  saniye bekle" yiyor ve kullanıcıya hata gibi görünüyor. `useRef` ile bir kez.
+- **İşlem (transaction) burada süs değil.** İki sahiplenme ayrı ayrı
+  yazılsaydı telefon tutup numara çakıştığında geride kimsenin sahiplenmediği
+  bir kayıt kalırdı. `check:panel` bunu ayrıca sınıyor: çakışan istek hiçbir
+  şey yazmamalı.
+- **Bir kural, ancak zorlayabildiği şeyi iddia edebilir.** Öğrenci numarasının
+  tekliği zorlanıyor; numaranın gerçekten o kişiye ait olduğu **zorlanmıyor**,
+  çünkü soracak bir kaynak yok. Ad ise hiç denetlenmiyor — "iki parça, 5–80
+  karakter" bir biçim kuralı ve `asdf qwer` her denetimden geçer. Uydurma bir
+  denetim yazmak olmayan bir güvenceyi varmış gibi göstermek olurdu; yerine
+  geçen şey maliyet, denetim değil: numara tek olduğu için troll ad kendi
+  numarasının üstünde kalıyor.
+- **İşlemsel postanın spam puanı gövdeden de geliyor.** Düz metin karşılığı
+  olmayan posta puan alıyor; yalnızca görselden oluşan gövde de öyle, üstelik
+  çoğu istemci görseli engellediği için posta boş bir çerçeve olarak açılıyor.
+  Kod postasında bağlantı da yok: hem bağlantı itibarına takılmıyor hem de
+  kullanıcıya "bu tür postalardaki bağlantılara basma" demeyi mümkün kılıyor.
+  Web fontu (Press Start 2P dâhil) postada çalışmıyor, palet metinle taşınıyor.

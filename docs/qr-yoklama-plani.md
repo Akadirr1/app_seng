@@ -52,11 +52,14 @@ Kayıt formu ad soyad için yalnızca "iki parça, 5–80 karakter" istiyor.
 tamamen otomatik dağıtılırsa, er ya da geç o belgenin üstüne bir şaka adı
 basılacak — ve geri alınamayacak, çünkü PDF'i kullanıcı indirmiş olacak.
 
-**Bu yüzden "tam otomatik" olmayan tek adım burası:** panelde etkinlik başına bir
-"sertifikaları yayınla" ekranı, katılımcı listesi, her satırda **profilden dolu
-gelen ve düzenlenebilir** bir ad alanı. Operatör bakar, düzeltir, yayınlar.
-Kullanıcının istediği "düzenlenebilir ad" zaten bu; yan ürünü, listeye bir insanın
-bakmış olması.
+**GÜNCELLEME — kulüp adı denetlemiyor.** Denetleyecek bir kaynak olmadığı için
+doğru karar bu (bkz. `docs/dogrulama-ve-teklik-plani.md` §1). Yerine geçen şey
+denetim değil, maliyet: öğrenci numarası artık tek, yani troll ad yazan kişi o
+adı kendi numarasıyla yazıyor ve ikinci bir hesapla temiz bir sertifika alamıyor.
+
+Panelde yayın ekranı yine var ve addaki alan yine düzenlenebilir — ama kapı
+olarak değil, düzeltme imkânı olarak: operatör listeye bakmak zorunda değil,
+bakmak isterse bakabiliyor.
 
 ### 2.2 Ad, düzenlendiği an dondurulmalı
 
@@ -76,16 +79,18 @@ konmuştu.
 ### 2.4 Bir insan, iki hesap
 
 `registrations` aynı öğrenci numarasının aynı etkinliğe iki kez yazılmasını
-doküman kimliğiyle engelliyor. Yoklama `uid`'e bağlı ve **profilde öğrenci
-numarası yok**, dolayısıyla bugün iki hesap açan bir kişi iki yoklama ve iki
-sertifika alır.
+doküman kimliğiyle engelliyor. Yoklama `uid`'e bağlıydı ve profilde öğrenci
+numarası yoktu, dolayısıyla iki hesap açan bir kişi iki yoklama ve iki
+sertifika alırdı.
 
-Önerilen: **öğrenci numarası profile eklensin** (kayıt formu zaten soruyor, profil
-onu doldurabilir — kullanıcının istediği otomatik doldurmanın eksik parçası da
-bu). Numaranın tekilliğini kural düzeyinde zorlamak ayrı bir `studentNumbers/{no}`
-talep koleksiyonu demek; **yazılmıyor**, çünkü §2.1'deki insan adımı aynı işi
-görüyor: yayın ekranı aynı numaraya sahip iki satırı yan yana gösterir, operatör
-görür.
+**ÇÖZÜLDÜ.** Öğrenci numarası profile eklendi ve teklik gerçekten zorlanıyor:
+`phoneClaims/{telefon}` ve `studentClaims/{ogrenciNo}` — doküman kimliği
+değerin kendisi, yazma panelde ve tek bir işlemde (ikisi birden ya da hiçbiri).
+Sahiplenme e-posta doğrulandığı anda oluyor, yani her kapma bir gerçek posta
+kutusu gerektiriyor. Ayrıntı: `docs/dogrulama-ve-teklik-plani.md`.
+
+Bu aynı zamanda §2.1'in dayanağı: ad denetlenmediği hâlde sertifikanın bir
+anlamı kalmasının tek sebebi, bir kişinin ikinci bir hesap açamaması.
 
 ### 2.5 Okutma anında giriş yoksa jeton kaybolmamalı
 
@@ -221,9 +226,13 @@ değil — **boş ya da kutulu bir isim**. Bu depoda "denenmemiş dal yazılmam�
 maddesi zaten var.
 
 Onun yerine sertifika bir **HTML sayfası**: panelin herkese açık rotası
-`GET /sertifika/:no` (yasal sayfalar gibi `requireAuth`'tan önce), arka planda
-panele yüklenmiş şablon görseli, üstünde CSS ile yerleştirilmiş ad. Font,
+`GET /sertifika/:no` (yasal sayfalar gibi `requireAuth`'tan önce). Font,
 görüntüleyenin cihazında çözülür.
+
+Şablonu **sosyal medya ekibi üretiyor**: etkinlik adı ve sertifika sahibinin adı
+değişken. İki yer tutucu birebir `{{ETKINLIK}}` ve `{{AD_SOYAD}}`, ve değerler
+**metin olarak** basılıyor — ad kullanıcıdan geliyor, kaçırılmadan basılırsa
+şablona kod sokulabilir.
 
 PDF isteyen için ikinci bir yol yazılmıyor: uygulama aynı HTML'i `expo-print` ile
 PDF'e basıp paylaşım sayfasına veriyor (`expo-print` SDK 57 listesinde, ek native
@@ -243,11 +252,13 @@ arayüzü olan kurgu, değişkendeki kurgudan çok daha zor fark ediliyor.
 
 - Uygulamada **Hesabım → Sertifikalarım**: kendi `attendance` satırlarından
   `certificate` taşıyanlar. Boşken piksel fontla boş durum metni (depo kuralı).
+- Posta: gönderim hattı kuruldu (`admin/mail.ts`), sertifika postası şablon
+  hazır olunca eklenecek — ayrı bir altyapı işi kalmadı.
 - Bildirim: mevcut push hattı (`pushPolicy` + `pendingPushes` + `pushLog` kilidi).
   Kilit gönderimden önce alınır, kimseye ulaşmayan gönderimde geri verilir — ikisi
   de defterde yazılı kurallar. Katılımcısı olmayan etkinlik için bildirim yok.
-- **E-posta ile gönderim yok.** SMTP bağımlılığı ve kimlik bilgisi demek; push +
-  uygulama içi sayfa yeterli.
+- ~~E-posta ile gönderim yok.~~ **Değişti:** SMTP hattı doğrulama kodu için
+  zaten kuruldu, dolayısıyla sertifikayı postalamanın ek maliyeti kalmadı.
 
 ---
 

@@ -21,6 +21,7 @@ const gecerli: SignupInput = {
   email: 'Elif.Yilmaz@Example.com',
   dogumTarihi: '2004-05-20',
   telefon: '0555 123 45 67',
+  ogrenciNo: '210201045',
   parola: 'cokgizliparola',
   kvkkOnay: true,
   kosullarOnay: true,
@@ -110,6 +111,19 @@ describe('validateSignup', () => {
       .toBeDefined();
   });
 
+  // Numara sertifikaya yazılıyor ve tek hesaba bağlanıyor; biçimi tutmayan
+  // bir değer ikisini de anlamsız kılar.
+  it('öğrenci numarası tam dokuz hane', () => {
+    for (const yanlis of ['', '12345678', '1234567890', '21020104a', '21020 1045']) {
+      expect(validateSignup({ ...gecerli, ogrenciNo: yanlis }, TODAY).ogrenciNo).toBeDefined();
+    }
+    expect(validateSignup({ ...gecerli, ogrenciNo: '210201045' }, TODAY).ogrenciNo).toBeUndefined();
+    // Yapıştırılan değerin başına/sonuna kaçan boşluk hata değil: telefonla
+    // aynı karar — girdide hoşgörülü, saklamada tek biçim.
+    expect(validateSignup({ ...gecerli, ogrenciNo: ' 210201045 ' }, TODAY).ogrenciNo).toBeUndefined();
+    expect(toProfile({ ...gecerli, ogrenciNo: ' 210201045 ' }, TODAY).ogrenciNo).toBe('210201045');
+  });
+
   it('kısa parolayı reddediyor', () => {
     expect(validateSignup({ ...gecerli, parola: 'a'.repeat(MIN_PASSWORD - 1) }, TODAY).parola)
       .toBeDefined();
@@ -132,6 +146,7 @@ describe('validateSignup', () => {
         email: 'x',
         dogumTarihi: '',
         telefon: '',
+        ogrenciNo: '',
         parola: '',
         kvkkOnay: false,
         kosullarOnay: false,
@@ -140,7 +155,7 @@ describe('validateSignup', () => {
     );
     // Tek bir "geçersiz" bayrağı kullanıcıya hangi alanı düzelteceğini söylemiyor.
     expect(Object.keys(hepsiBozuk).sort()).toEqual(
-      ['adSoyad', 'dogumTarihi', 'email', 'kosullarOnay', 'kvkkOnay', 'parola', 'telefon'].sort(),
+      ['adSoyad', 'dogumTarihi', 'email', 'kosullarOnay', 'kvkkOnay', 'ogrenciNo', 'parola', 'telefon'].sort(),
     );
   });
 });
@@ -203,6 +218,10 @@ describe('toProfile', () => {
     expect(p.email).toBe('elif.yilmaz@example.com');
     expect(p.telefon).toBe('+905551234567');
     expect(p.adSoyad).toBe('Elif Yılmaz');
+  });
+
+  it('öğrenci numarasını profile taşıyor', () => {
+    expect(toProfile(gecerli, now).ogrenciNo).toBe('210201045');
   });
 
   it('araya kaçmış boşlukları tekleştiriyor', () => {

@@ -3,7 +3,7 @@ import React from 'react';
 import { Linking, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { formatPhone } from '../../src/accountSchema';
-import { resendVerification, signOut } from '../../src/auth';
+import { signOut } from '../../src/auth';
 import { useAuth } from '../../src/authStore';
 import { PixelIcon } from '../../src/components/Pixel';
 import {
@@ -69,15 +69,12 @@ export default function HesapRoute() {
                   E-postanı doğrula
                 </Txt>
                 <Txt size={12.5} leading={1.5} color={colors.muted} style={{ marginTop: 5 }}>
-                  Etkinliklere katılabilmek için {user.email} adresine gönderdiğimiz
-                  bağlantıya dokunman gerekiyor.
+                  Etkinliklere katılabilmek için {user.email} adresine
+                  göndereceğimiz altı haneli kodu girmen gerekiyor.
                 </Txt>
-                <Pressable
-                  onPress={() => void resendVerification().catch(() => {})}
-                  style={{ paddingTop: 12 }}
-                >
+                <Pressable onPress={() => router.push('/dogrula')} style={{ paddingTop: 12 }}>
                   <Txt weight="semibold" size={13} color={colors.blue500}>
-                    Bağlantıyı tekrar gönder
+                    E-postamı doğrula
                   </Txt>
                 </Pressable>
               </View>

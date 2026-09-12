@@ -15,6 +15,8 @@
 import { getAuth } from 'firebase-admin/auth';
 import type { Firestore } from 'firebase-admin/firestore';
 
+import { releaseIdentity } from './claims';
+
 /** Yoklama aralığı. Kullanıcı ekranda bekliyor olabilir; sık ama bedava değil. */
 const INTERVAL_MS = 60_000;
 
@@ -37,7 +39,7 @@ const AUTH_GRACE_MS = 10 * 60_000;
  * bir kullanıcının geride kalan verisi olurdu ve bunu kimse fark etmez —
  * listeyi tek doğru kaynak yapmak o ihtimali ortadan kaldırıyor.
  */
-export const USER_DOC_COLLECTIONS = ['users'] as const;
+export const USER_DOC_COLLECTIONS = ['users', 'emailOtp'] as const;
 export const USER_QUERY_COLLECTIONS = ['registrations', 'raffleEntries'] as const;
 
 export type DeletionOutcome = { uid: string; silinen: number };
@@ -60,6 +62,18 @@ export async function processDeletion(
   now = Date.now(),
 ): Promise<DeletionOutcome> {
   let silinen = 0;
+
+  // Teklik kayıtları iki listeye de giremiyor: doküman kimlikleri `uid` değil,
+  // telefonun ve öğrenci numarasının kendisi, ve `uid` alanıyla sorgulanabilseler
+  // bile profil silindikten sonra hangi değerler olduğu okunamaz. Bu yüzden
+  // profil OKUNDUKTAN SONRA ama silinmeden önce serbest bırakılıyorlar —
+  // atlanırsa silinen hesabın numarası sonsuza kadar kilitli kalır ve aynı
+  // kişi bir daha kayıt olamaz.
+  const profil = (await db.collection('users').doc(uid).get()).data() ?? {};
+  await releaseIdentity(db, {
+    telefon: typeof profil.telefon === 'string' ? profil.telefon : undefined,
+    ogrenciNo: typeof profil.ogrenciNo === 'string' ? profil.ogrenciNo : undefined,
+  });
 
   for (const name of USER_DOC_COLLECTIONS) {
     await db.collection(name).doc(uid).delete();

@@ -29,6 +29,21 @@ import {
   processDeletion,
 } from '../admin/deletion';
 import { archiveList, eventForm } from '../admin/views';
+import {
+  OTP_MAX_ATTEMPTS,
+  OTP_MAX_SENDS,
+  OTP_RESEND_MS,
+  OTP_SEND_WINDOW_MS,
+  OTP_TTL_MS,
+  decideSend,
+  decideVerify,
+  hashCode,
+  makeCode,
+  type OtpRecord,
+} from '../admin/otp';
+import { readMailConfig } from '../admin/mail';
+import { otpMail } from '../admin/mailTemplate';
+import { claimIdentity } from '../admin/claims';
 
 let failed = 0;
 function assert(name: string, condition: boolean, detail = '') {
@@ -469,6 +484,10 @@ void (async () => {
         return {
           doc(id: string) {
             return {
+              async get() {
+                const data = c.get(id);
+                return { exists: data !== undefined, data: () => data };
+              },
               async delete() {
                 c.delete(id);
               },
@@ -496,9 +515,15 @@ void (async () => {
   }
 
   const UID = 'kullanici-1';
+  const TELEFON = '+905551234567';
+  const OGRENCI_NO = '210201045';
   const silme = silmeDb();
   // Her listelenen koleksiyona bu kullanıcıya ait birer kayıt.
   for (const name of USER_DOC_COLLECTIONS) silme._seed(name, UID, { uid: UID });
+  // Profil, teklik kayıtlarının hangi değerlere yazıldığını taşıyan tek yer.
+  silme._seed('users', UID, { uid: UID, telefon: TELEFON, ogrenciNo: OGRENCI_NO });
+  silme._seed('phoneClaims', TELEFON, { uid: UID });
+  silme._seed('studentClaims', OGRENCI_NO, { uid: UID });
   for (const name of USER_QUERY_COLLECTIONS) silme._seed(name, `${name}-1`, { uid: UID });
   // Ve başkasına ait birer kayıt: silme yalnızca kendi verisine dokunmalı.
   for (const name of USER_QUERY_COLLECTIONS) silme._seed(name, `${name}-2`, { uid: 'baskasi' });
@@ -515,6 +540,16 @@ void (async () => {
     );
   }
 
+  // ASIL MESELE: teklik kayıtlarının doküman kimliği `uid` değil, telefonun ve
+  // öğrenci numarasının kendisi — yani iki listeye de giremiyorlar ve ayrıca
+  // serbest bırakılmaları gerekiyor. Atlanırsa belirti sessiz: hesap silinmiş
+  // görünür, ama aynı kişi bir daha kayıt olamaz çünkü numarası hâlâ kilitli.
+  assert(
+    'silme teklik kayıtlarını serbest bırakıyor',
+    silme._count('phoneClaims') === 0 && silme._count('studentClaims') === 0,
+    `phoneClaims: ${silme._count('phoneClaims')}, studentClaims: ${silme._count('studentClaims')}`,
+  );
+
   // Profil ad, telefon ve doğum tarihi taşıyor: listeden düşerse KVKK ihlali.
   assert(
     'profil koleksiyonu listede',
@@ -529,6 +564,185 @@ void (async () => {
 
   // Talep "bitti" işaretleniyor — istemci onayı buradan okuyor.
   assert('talep bitti olarak işaretleniyor', silme._count('deletionRequests') === 1);
+
+  // ----------------------------------------------- doğrulama kodu (OTP)
+
+  const T0 = 1_700_000_000_000;
+  const kayitYap = (over: Partial<OtpRecord> = {}): OtpRecord => ({
+    hash: hashCode('u1', '123456'),
+    createdAt: T0,
+    sendCount: 1,
+    windowStart: T0,
+    attempts: 0,
+    ...over,
+  });
+
+  assert('kod altı hane ve baştaki sıfırı koruyor',
+    Array.from({ length: 200 }, makeCode).every((k) => /^[0-9]{6}$/.test(k)));
+
+  // Aynı kod iki kullanıcıda aynı hash'i vermemeli: kayıt sızsa bile bir
+  // kullanıcının hash'i diğerinde kullanılamasın.
+  assert('hash kullanıcıya bağlı', hashCode('u1', '123456') !== hashCode('u2', '123456'));
+
+  {
+    const ilk = decideSend(null, T0);
+    assert('ilk kod her zaman gönderiliyor', ilk.ok);
+
+    const hemen = decideSend(kayitYap(), T0 + 1_000);
+    assert('üst üste basmak bekletiliyor',
+      !hemen.ok && hemen.reason === 'bekle' && hemen.saniye > 0);
+
+    const sonra = decideSend(kayitYap(), T0 + OTP_RESEND_MS);
+    assert('bekleme dolunca yeni kod veriliyor', sonra.ok);
+
+    // İKİ SINIR DA GEREKİYOR: 60 saniyelik bekleme tek başına saatte 60 posta
+    // demek. Tavan olmadan biri başkasının kutusunu doldurabilirdi.
+    const tavan = decideSend(
+      kayitYap({ sendCount: OTP_MAX_SENDS, createdAt: T0 }),
+      T0 + OTP_RESEND_MS,
+    );
+    assert('saatlik tavan posta kutusunu koruyor',
+      !tavan.ok && tavan.reason === 'cok_fazla');
+
+    const pencereSonrasi = decideSend(
+      kayitYap({ sendCount: OTP_MAX_SENDS, windowStart: T0 }),
+      T0 + OTP_SEND_WINDOW_MS + 1,
+    );
+    assert('pencere dolunca sayaç sıfırlanıyor',
+      pencereSonrasi.ok && pencereSonrasi.record.sendCount === 1);
+  }
+
+  {
+    assert('kod yoksa söyleniyor',
+      !decideVerify(null, 'u1', '123456', T0).ok);
+
+    const dogru = decideVerify(kayitYap(), 'u1', '123456', T0 + 1000);
+    assert('doğru kod geçiyor', dogru.ok);
+
+    const yanlis = decideVerify(kayitYap(), 'u1', '000000', T0 + 1000);
+    assert('yanlış kod kalan denemeyi söylüyor',
+      !yanlis.ok && yanlis.reason === 'yanlis' && yanlis.kalan === OTP_MAX_ATTEMPTS - 1);
+
+    const baskasi = decideVerify(kayitYap(), 'u2', '123456', T0 + 1000);
+    assert('başka kullanıcının kodu geçmiyor', !baskasi.ok);
+
+    // ASIL MESELE: süre ve kilit, yanlış koddan ÖNCE bakılmak zorunda. Tersi
+    // olsaydı süresi dolmuş kodu giren kullanıcı "kod yanlış" görür ve doğru
+    // kodu aramaya başlardı — oysa yapması gereken yeni kod istemek.
+    const dolmus = decideVerify(kayitYap(), 'u1', '123456', T0 + OTP_TTL_MS + 1);
+    assert('süresi dolmuş kod doğru olsa da geçmiyor',
+      !dolmus.ok && dolmus.reason === 'suresi_doldu');
+    const dolmusYanlis = decideVerify(kayitYap(), 'u1', '000000', T0 + OTP_TTL_MS + 1);
+    assert('süresi dolmuşta cevap "yanlış" değil "süresi doldu"',
+      !dolmusYanlis.ok && dolmusYanlis.reason === 'suresi_doldu');
+
+    const kilitli = decideVerify(kayitYap({ attempts: OTP_MAX_ATTEMPTS }), 'u1', '123456', T0);
+    assert('deneme hakkı bitince doğru kod da geçmiyor',
+      !kilitli.ok && kilitli.reason === 'kilitli');
+  }
+
+  // ----------------------------------------------- posta yapılandırması
+
+  {
+    const eksik = readMailConfig({});
+    assert('eksik SMTP ayarı adıyla söyleniyor',
+      'eksik' in eksik && eksik.eksik.join(',') === 'SMTP_HOST,SMTP_USER,SMTP_PASS');
+
+    // `??` boş dizeyi yakalamıyor — bu depoda `ADMIN_PORT` ile bir kez yaşandı
+    // ve `listen(0)` üretmişti. Boş SMTP_HOST "yapılandırılmış ama bağlanamıyor"
+    // gibi görünürdü.
+    const bos = readMailConfig({ SMTP_HOST: '  ', SMTP_USER: 'a@b.c', SMTP_PASS: 'x' });
+    assert('boş SMTP_HOST eksik sayılıyor', 'eksik' in bos && bos.eksik.includes('SMTP_HOST'));
+
+    const tam = readMailConfig({ SMTP_HOST: 'smtp.gmail.com', SMTP_USER: 'noreply@kouseng.com', SMTP_PASS: 'x' });
+    assert('port varsayılanı 587', 'config' in tam && tam.config.port === 587);
+    // Görünen adı olmayan gönderen gelen kutusunda çıplak bir adres olarak
+    // duruyor; hem güven vermiyor hem spam puanı alıyor.
+    assert('gönderen görünen ad taşıyor',
+      'config' in tam && tam.config.from.includes('<noreply@kouseng.com>'));
+
+    const kotuPort = readMailConfig({ SMTP_HOST: 'h', SMTP_USER: 'u', SMTP_PASS: 'p', SMTP_PORT: 'abc' });
+    assert('anlamsız port varsayılana düşüyor', 'config' in kotuPort && kotuPort.config.port === 587);
+  }
+
+  {
+    const mail = otpMail('048213', 10);
+    // Yalnızca HTML gönderen posta spam puanı alıyor, ve metin okuyucularda
+    // gövde tamamen boş görünüyor.
+    assert('postanın düz metin karşılığı var', mail.text.includes('048213'));
+    assert('kod gövdede geçiyor', mail.html.includes('048213'));
+    assert('konu kodu taşıyor', mail.subject.includes('048213'));
+    // Görsel engellenince boş çerçeve kalırdı; bağlantı hem itibar hem de
+    // "bu tür postalardaki bağlantıya basma" tavsiyesiyle çelişirdi.
+    assert('postada görsel yok', !/<img/i.test(mail.html));
+    assert('postada http bağlantısı yok', !/href="https?:/i.test(mail.html));
+  }
+
+  // ----------------------------------------------- teklik (claims)
+
+  {
+    /** `runTransaction` + `tx.get/set/delete` destekleyen küçük bir Firestore. */
+    function claimDb() {
+      const store = new Map<string, Map<string, Record<string, unknown>>>();
+      const col = (n: string) => {
+        if (!store.has(n)) store.set(n, new Map());
+        return store.get(n)!;
+      };
+      const ref = (n: string, id: string) => ({ _n: n, _id: id });
+      const api = {
+        collection: (n: string) => ({ doc: (id: string) => ref(n, id) }),
+        async runTransaction<T>(fn: (tx: unknown) => Promise<T>): Promise<T> {
+          const tx = {
+            async get(r: { _n: string; _id: string }) {
+              const d = col(r._n).get(r._id);
+              return { exists: d !== undefined, get: (k: string) => d?.[k] };
+            },
+            set(r: { _n: string; _id: string }, data: Record<string, unknown>) {
+              col(r._n).set(r._id, data);
+            },
+            delete(r: { _n: string; _id: string }) {
+              col(r._n).delete(r._id);
+            },
+          };
+          return fn(tx);
+        },
+        _get: (n: string, id: string) => col(n).get(id),
+        _count: (n: string) => col(n).size,
+      };
+      return api;
+    }
+
+    const TEL = '+905551234567';
+    const NO = '210201045';
+    const db2 = claimDb();
+
+    const ilk = await claimIdentity(db2 as never, 'u1', { telefon: TEL, ogrenciNo: NO });
+    assert('ilk sahiplenme geçiyor', ilk.ok);
+
+    const ikinci = await claimIdentity(db2 as never, 'u2', { telefon: TEL, ogrenciNo: '999999999' });
+    assert('aynı telefon ikinci hesaba geçmiyor',
+      !ikinci.ok && ikinci.alan === 'telefon');
+    // ÇAKIŞMA HİÇBİR ŞEY YAZMAMALI: telefon tutup numara çakışsaydı geride
+    // kimsenin sahiplenmediği bir kayıt kalırdı. İşlemin varlık sebebi bu.
+    assert('çakışan istek yarım kayıt bırakmıyor', db2._count('studentClaims') === 1);
+
+    const ucuncu = await claimIdentity(db2 as never, 'u3', { telefon: '+905550000000', ogrenciNo: NO });
+    assert('aynı öğrenci numarası ikinci hesaba geçmiyor',
+      !ucuncu.ok && ucuncu.alan === 'ogrenciNo');
+    assert('reddedilen telefon boşta kalıyor', db2._count('phoneClaims') === 1);
+
+    // Kendi kaydını tazelemek çakışma değil — çakışma yüzünden numarasını
+    // düzelten kullanıcı, eski değerini sonsuza kadar kilitli bırakmamalı.
+    const duzeltme = await claimIdentity(
+      db2 as never,
+      'u1',
+      { telefon: '+905559998877', ogrenciNo: NO },
+      { telefon: TEL, ogrenciNo: NO },
+    );
+    assert('kendi kaydını güncelleyebiliyor', duzeltme.ok);
+    assert('eski telefon serbest bırakılıyor', db2._get('phoneClaims', TEL) === undefined);
+    assert('yeni telefon sahiplenildi', db2._get('phoneClaims', '+905559998877') !== undefined);
+  }
 })().then(() => {
   // Çıkış burada: yukarıdaki blok asenkron, dosyanın sonunda çağrılsaydı
   // iddialar sayılmadan önce koşardı.
