@@ -1039,3 +1039,27 @@ sayın** — sayaç, olmayan bir soruna yazılmış bir mekanizmaydı.
   yalnızca yaklaşanları veriyor (`splitByDate`), dolayısıyla olmuş bir
   etkinliğin kaydı kartta başlık yerine ham kimliğini gösterirdi. Liste
   `events` + `archive` üzerinden arıyor.
+
+### Doğum tarihi kutusu — biçimlendirmenin girdiyi kilitlemesi
+
+- **Her tuş vuruşunda doldurmak, alanı kullanılamaz hâle getiriyor.**
+  `DateFields` birleştirilmiş `YYYY-MM-DD` değerini tek doğru kaynak sayıyordu:
+  yıla `2` yazılınca `pad` onu `0002` yapıyor, dört hane kutuya geri basılıyor
+  ve `maxLength={4}` dolduğu için klavye beşinci haneyi **kabul etmiyor**.
+  Gün ve ayda da aynısı (`2` → `02`, iki hane dolu). Simülatörde ölçüldü:
+  `2005` ancak yapıştırılarak girilebildi. Hata bir çökme ya da uyarı değil —
+  tuşa basılıyor ve hiçbir şey olmuyor, ki bu en geç fark edilen sınıf.
+- **Kural: bir girdi kutusunun değeri, kullanıcının yazdığı ham hâl olmalı.**
+  Normalleştirme (doldurma, biçimlendirme, kesme) ancak kutunun **dışına**
+  çıkarken uygulanabilir. Ekrana geri yazılan her normalleştirme, kullanıcının
+  bir sonraki tuşuyla yarışıyor.
+- **Yarım girdi ile tam değer aynı şey değil.** `joinDate` üç kutu da dolmadan
+  boş dönüyor; doldurma yalnızca orada ve yalnızca tamamlanmış tarihte oluyor.
+  Kutular kendi ham hanelerini `useState` ile tutuyor.
+- **Ekranın içine gömülü bir bileşenin testi olmuyor, o yüzden hatası da
+  görünmüyordu.** Karar `src/accountSchema.ts`'e (`splitDate`/`joinDate`/
+  `digits`) taşındı ve testi yazıldı; eski doldurma davranışı geri konunca iki
+  test kırmızı verdi — ölçüldü.
+- **React 19'da `ref` sıradan bir prop**, `forwardRef` gerekmiyor; ama paylaşılan
+  `Input` bileşeninin tipinde yazılmazsa TS2322 veriyor. Hane dolunca sıradaki
+  kutuya odaklanmak bunu kullanıyor.

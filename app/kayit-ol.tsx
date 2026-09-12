@@ -1,5 +1,5 @@
 import { useRouter } from 'expo-router';
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import {
   KeyboardAvoidingView,
   Linking,
@@ -7,15 +7,20 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
+  TextInput,
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import {
   MIN_PASSWORD,
+  digits,
   formatPhone,
+  joinDate,
   normalizePhone,
+  splitDate,
   validateSignup,
+  type DateParts,
   type FieldErrors,
   type SignupInput,
 } from '../src/accountSchema';
@@ -204,39 +209,57 @@ export default function SignupRoute() {
 }
 
 /**
- * Doğum tarihi üç kutu.
+ * Doğum tarihi üç kutu: gün, ay, yıl.
  *
- * Yerel tarih seçici `@react-native-community/datetimepicker` demek — üç
- * sayısal alanın çözdüğü bir iş için yeni bir native bağımlılık. Değer yine
- * `YYYY-MM-DD`, yani doğrulama tarafı hangi arayüzle girildiğini bilmiyor.
+ * **Kutular kendi ham hanelerini tutuyor.** Önceki hâli birleştirilmiş
+ * `YYYY-MM-DD` değerini tek doğru kaynak sayıp her tuş vuruşunda sıfırla
+ * tamamlıyordu: yıla `2` yazınca değer `0002` oluyor, o dört hane kutuya geri
+ * basılıyor ve `maxLength={4}` dolduğu için klavye beşinci haneyi kabul
+ * etmiyordu. Alan kullanılamaz hâle geliyordu — `2005` ancak yapıştırılarak
+ * girilebiliyordu. Doldurma artık yalnızca `joinDate` içinde ve yalnızca üç
+ * kutu da doluyken oluyor.
+ *
+ * Yerel tarih seçici (`@react-native-community/datetimepicker`) yeni bir
+ * native modül demek; üç sayısal kutu doğru çalıştığında aynı işi görüyor ve
+ * doğum yılı için kaydırmaktan hızlı.
  */
 function DateFields({ value, onChange }: { value: string; onChange: (v: string) => void }) {
-  const [y, m, d] = value ? value.split('-') : ['', '', ''];
+  const [parts, setParts] = useState<DateParts>(() => splitDate(value));
+  const ayRef = useRef<TextInput>(null);
+  const yilRef = useRef<TextInput>(null);
 
-  const birlestir = (yy: string, mm: string, dd: string) =>
-    onChange(yy || mm || dd ? `${pad(yy, 4)}-${pad(mm, 2)}-${pad(dd, 2)}` : '');
+  const set = (key: keyof DateParts, raw: string, sonraki?: React.RefObject<TextInput | null>) => {
+    const next = { ...parts, [key]: raw };
+    setParts(next);
+    onChange(joinDate(next));
+    // Hane dolunca sıradaki kutuya geç: gün ve ay iki hane, kullanıcının üç
+    // kez ayrı ayrı dokunmasına gerek yok.
+    if (raw.length === 2 && sonraki) sonraki.current?.focus();
+  };
 
   return (
     <View style={{ flexDirection: 'row', gap: 10 }}>
       <Input
-        value={d === '00' ? '' : d}
-        onChangeText={(v) => birlestir(y, m, v.replace(/\D/g, '').slice(0, 2))}
+        value={parts.gun}
+        onChangeText={(v) => set('gun', digits(v, 2), ayRef)}
         placeholder="Gün"
         keyboardType="number-pad"
         maxLength={2}
         style={{ flex: 1 }}
       />
       <Input
-        value={m === '00' ? '' : m}
-        onChangeText={(v) => birlestir(y, v.replace(/\D/g, '').slice(0, 2), d)}
+        ref={ayRef}
+        value={parts.ay}
+        onChangeText={(v) => set('ay', digits(v, 2), yilRef)}
         placeholder="Ay"
         keyboardType="number-pad"
         maxLength={2}
         style={{ flex: 1 }}
       />
       <Input
-        value={y === '0000' ? '' : y}
-        onChangeText={(v) => birlestir(v.replace(/\D/g, '').slice(0, 4), m, d)}
+        ref={yilRef}
+        value={parts.yil}
+        onChangeText={(v) => set('yil', digits(v, 4))}
         placeholder="Yıl"
         keyboardType="number-pad"
         maxLength={4}
@@ -244,11 +267,6 @@ function DateFields({ value, onChange }: { value: string; onChange: (v: string) 
       />
     </View>
   );
-}
-
-/** Eksik haneyi sıfırla tamamlıyor; `ageOn` zaten var olmayan tarihi eliyor. */
-function pad(v: string, len: number): string {
-  return v.padStart(len, '0').slice(-len);
 }
 
 function LegalLink({ label, url }: { label: string; url: string }) {

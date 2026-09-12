@@ -152,6 +152,42 @@ export function isValidSignup(input: SignupInput, today: Date): boolean {
   return Object.keys(validateSignup(input, today)).length === 0;
 }
 
+/**
+ * Doğum tarihi alanlarının ham hâli — kullanıcının yazdığı haneler.
+ *
+ * Ayrı bir tip çünkü **yarım girdi ile tam tarih aynı şey değil.** Bu ayrım
+ * gözetilmediğinde alan kullanılamaz hâle geliyor: yıl kutusuna `2` yazılıp
+ * hemen `0002`'ye tamamlanırsa kutu `maxLength` sınırına dayanır ve klavye
+ * beşinci haneyi kabul etmez. Simülatörde tam bu yaşandı — `2005` ancak
+ * yapıştırılarak girilebildi.
+ */
+export type DateParts = { gun: string; ay: string; yil: string };
+
+/** `YYYY-MM-DD` → ham haneler. Boş ya da eksik değer üç boş alan veriyor. */
+export function splitDate(value: string): DateParts {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  return m ? { yil: m[1], ay: m[2], gun: m[3] } : { gun: '', ay: '', yil: '' };
+}
+
+/**
+ * Ham haneler → `YYYY-MM-DD`, ya da eksikse boş.
+ *
+ * **Doldurma yalnızca burada, ve yalnızca üçü de doluyken.** Yarım girdide boş
+ * dönmesi bilinçli: çağıran ekran bu değeri kutulara geri yazmıyor, dolayısıyla
+ * kullanıcı yazmayı bitirene kadar hiçbir hane kendiliğinden belirmiyor.
+ * `1.5.2005` gibi tek haneli girişler de burada tamamlanıyor — `ageOn` zaten
+ * var olmayan bir tarihi eliyor, o yüzden burada takvim denetimi yok.
+ */
+export function joinDate({ gun, ay, yil }: DateParts): string {
+  if (!gun || !ay || !yil) return '';
+  return `${yil.padStart(4, '0')}-${ay.padStart(2, '0')}-${gun.padStart(2, '0')}`;
+}
+
+/** Yalnızca rakam, en fazla `len` hane. Kutuların tek girdi süzgeci. */
+export function digits(raw: string, len: number): string {
+  return raw.replace(/\D/g, '').slice(0, len);
+}
+
 /** Firestore'a yazılan profil. Formun ham hâli değil, normalleştirilmiş hâli. */
 export type Profile = {
   adSoyad: string;

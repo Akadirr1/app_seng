@@ -2,6 +2,9 @@ import {
   MIN_AGE,
   MIN_PASSWORD,
   ageOn,
+  digits,
+  joinDate,
+  splitDate,
   formatPhone,
   isValidSignup,
   normalizeEmail,
@@ -139,6 +142,56 @@ describe('validateSignup', () => {
     expect(Object.keys(hepsiBozuk).sort()).toEqual(
       ['adSoyad', 'dogumTarihi', 'email', 'kosullarOnay', 'kvkkOnay', 'parola', 'telefon'].sort(),
     );
+  });
+});
+
+describe('doğum tarihi kutuları', () => {
+  // ASIL MESELE: eski hâl her tuş vuruşunda sıfırla tamamlıyordu. Yıla `2`
+  // yazınca değer `0002` oluyor, dört hane kutuya geri basılıyor ve
+  // `maxLength={4}` dolduğu için klavye beşinci haneyi kabul etmiyordu —
+  // alan kullanılamaz hâle geliyordu. Yarım girdi boş dönmek ZORUNDA.
+  it('yarım girdide boş dönüyor — hiçbir hane kendiliğinden belirmiyor', () => {
+    expect(joinDate({ gun: '', ay: '', yil: '2' })).toBe('');
+    expect(joinDate({ gun: '2', ay: '', yil: '' })).toBe('');
+    expect(joinDate({ gun: '20', ay: '05', yil: '' })).toBe('');
+    expect(joinDate({ gun: '', ay: '', yil: '' })).toBe('');
+  });
+
+  // Yarım girdi boş döndüğü için geri okuma da boş: kutulara `0002` yazılamaz.
+  it('yarım girdi kutulara geri yazılamıyor', () => {
+    const yarim = joinDate({ gun: '', ay: '', yil: '2' });
+    expect(splitDate(yarim)).toEqual({ gun: '', ay: '', yil: '' });
+    // Eski hâlde burası `{ yil: '0002', ay: '00', gun: '00' }` dönüyordu ve
+    // kutu dolu göründüğü için kullanıcı yazmaya devam edemiyordu.
+    expect(splitDate(yarim).yil).not.toBe('0002');
+  });
+
+  it('üçü de doluyken tamamlıyor', () => {
+    expect(joinDate({ gun: '20', ay: '05', yil: '2005' })).toBe('2005-05-20');
+    // Tek haneli gün/ay elle yazılabilmeli: 1 Mayıs için `01` yazmak şart değil.
+    expect(joinDate({ gun: '1', ay: '5', yil: '2005' })).toBe('2005-05-01');
+  });
+
+  it('tam tarih kutulara ham hâliyle geri dönüyor', () => {
+    expect(splitDate('2005-05-20')).toEqual({ gun: '20', ay: '05', yil: '2005' });
+  });
+
+  it('gidiş dönüş kayıpsız', () => {
+    const parts = { gun: '20', ay: '05', yil: '2005' };
+    expect(splitDate(joinDate(parts))).toEqual(parts);
+  });
+
+  it('digits yalnızca rakam alıyor ve kesiyor', () => {
+    expect(digits('2a0', 2)).toBe('20');
+    expect(digits('20055', 4)).toBe('2005');
+    expect(digits('--', 2)).toBe('');
+  });
+
+  // Tamamlanan tarih doğrulamadan da geçmeli, yoksa kullanıcı doğru yazıp
+  // yine de "doğum tarihinizi seçin" görür.
+  it('tamamlanan tarih doğrulamadan geçiyor', () => {
+    const tarih = joinDate({ gun: '20', ay: '5', yil: '2005' });
+    expect(validateSignup({ ...gecerli, dogumTarihi: tarih }, TODAY).dogumTarihi).toBeUndefined();
   });
 });
 

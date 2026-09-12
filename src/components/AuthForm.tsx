@@ -36,14 +36,22 @@ export function Field({
   );
 }
 
-/** Odak ve hata kenarlığını tek yerde tutan giriş kutusu. */
+/**
+ * Odak ve hata kenarlığını tek yerde tutan giriş kutusu.
+ *
+ * `ref` props'ta bilerek tanımlı: React 19'da fonksiyon bileşenleri için `ref`
+ * sıradan bir prop, `forwardRef` gerekmiyor — ama tipte yazılmazsa geçmiyor.
+ * Doğum tarihi kutuları hane dolunca sıradakine odaklanmak için kullanıyor.
+ */
 export function Input({
   error = false,
+  ref,
   ...rest
-}: TextInputProps & { error?: boolean }) {
+}: TextInputProps & { error?: boolean; ref?: React.Ref<TextInput> }) {
   const [focused, setFocused] = React.useState(false);
   return (
     <TextInput
+      ref={ref}
       {...rest}
       onFocus={(e) => {
         setFocused(true);
