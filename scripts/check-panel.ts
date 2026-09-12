@@ -641,6 +641,26 @@ void (async () => {
       !kilitli.ok && kilitli.reason === 'kilitli');
   }
 
+  {
+    // ASIL MESELE: hesap başına sınır, hesap açmayı bedava bir kaçış yolu
+    // bırakıyor. IP sayacı onu kapatıyor — parametreli `loginLimiter` aynı
+    // kod, farklı tavan.
+    let simdi = T0;
+    const limit = loginLimiter(() => simdi, 3, 60_000);
+    assert('temiz IP kilitli değil', limit.lockedFor('1.2.3.4') === 0);
+
+    limit.fail('1.2.3.4');
+    limit.fail('1.2.3.4');
+    assert('tavanın altında geçiyor', limit.lockedFor('1.2.3.4') === 0);
+
+    limit.fail('1.2.3.4');
+    assert('tavana gelince kilitleniyor', limit.lockedFor('1.2.3.4') > 0);
+    assert('başka IP etkilenmiyor', limit.lockedFor('5.6.7.8') === 0);
+
+    simdi += 60_001;
+    assert('pencere dolunca açılıyor', limit.lockedFor('1.2.3.4') === 0);
+  }
+
   // ----------------------------------------------- posta yapılandırması
 
   {
