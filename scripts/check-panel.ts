@@ -663,6 +663,29 @@ void (async () => {
 
     const kotuPort = readMailConfig({ SMTP_HOST: 'h', SMTP_USER: 'u', SMTP_PASS: 'p', SMTP_PORT: 'abc' });
     assert('anlamsız port varsayılana düşüyor', 'config' in kotuPort && kotuPort.config.port === 587);
+
+    // ASIL MESELE: giriş `info@` ile yapılıyor ama posta `noreply@`'dan
+    // görünmeli. MAIL_FROM, SMTP_USER'ı EZMEK zorunda — ezmezse kimse fark
+    // etmeden bütün postalar info@'dan gider.
+    const takma = readMailConfig({
+      SMTP_HOST: 'smtp.gmail.com',
+      SMTP_USER: 'info@kouseng.com',
+      SMTP_PASS: 'x',
+      MAIL_FROM: 'KOÜ Yazılım Kulübü <noreply@kouseng.com>',
+    });
+    assert(
+      'MAIL_FROM giriş hesabını eziyor',
+      'config' in takma && takma.config.from.includes('noreply@kouseng.com')
+        && !takma.config.from.includes('info@kouseng.com'),
+      'config' in takma ? takma.config.from : 'yapılandırma okunamadı',
+    );
+    // Boş MAIL_FROM'un SMTP_USER'a düşmesi belgelenmiş davranış; sessiz
+    // olmaması için panel açılışta ve /bildirimler sayfasında adresi yazıyor.
+    const bosFrom = readMailConfig({
+      SMTP_HOST: 'h', SMTP_USER: 'info@kouseng.com', SMTP_PASS: 'x', MAIL_FROM: '   ',
+    });
+    assert('boş MAIL_FROM giriş hesabına düşüyor',
+      'config' in bosFrom && bosFrom.config.from.includes('info@kouseng.com'));
   }
 
   {

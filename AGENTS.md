@@ -1146,3 +1146,26 @@ sayın** — sayaç, olmayan bir soruna yazılmış bir mekanizmaydı.
   Kod postasında bağlantı da yok: hem bağlantı itibarına takılmıyor hem de
   kullanıcıya "bu tür postalardaki bağlantılara basma" demeyi mümkün kılıyor.
   Web fontu (Press Start 2P dâhil) postada çalışmıyor, palet metinle taşınıyor.
+- **Bir takma addan gönderemezsiniz — `smtp.gmail.com` From'u kimlik
+  doğrulanan hesaba çeviriyor.** Google'ın kendi belgesi düz yazıyor: standart
+  Gmail SMTP'de "From adresi kimlik doğrulanan hesapla aynı olmalı", röle
+  (`smtp-relay.gmail.com`) ise alan adındaki herhangi bir adrese izin veriyor.
+  Yani `SMTP_USER=info@`, `MAIL_FROM=noreply@` yazmak tek başına yetmiyor;
+  takma ad `info@` hesabında "farklı adresten gönder" olarak tanımlı değilse
+  posta `info@`'dan gidiyor. **Hiçbir yerel kontrol bunu göremez** — gönderilen
+  başlık doğru, değiştiren taraf Google. Tek kanıt gelen postanın gönderen
+  satırı, o yüzden panele test postası düğmesi kondu (`/bildirimler`).
+- **Boş bir `MAIL_FROM` sessizce giriş hesabına düşüyor.** Belgelenmiş ve
+  istenen davranış, ama görünmez olursa bütün postalar yanlış adresten gider ve
+  kimse fark etmez. Panel hem açılışta hem `/bildirimler` sayfasında hangi
+  adresten göndereceğini yazıyor; `check:panel` de `MAIL_FROM`'un `SMTP_USER`'ı
+  ezdiğini doğruluyor (ezmeyen hâli kırmızı verdi).
+- **Kod gönderme uç noktası gövdeden e-posta almıyor, kimlik jetonundan
+  alıyor.** `POST /sendOtp {email}` biçimindeki bir tasarım, kulübün alan
+  adından herkese posta gönderilebilen bir kapı olurdu — hız sınırı da
+  kurbanın adresine değil isteği atana bağlanamazdı. `verifyIdToken`'dan gelen
+  `uid` + `email` ile hem kurban seçilemiyor hem de sayaç doğru yere yazılıyor.
+- **Cloud Function bu projede bir seçenek değil.** Dışarıdan gelen her tasarım
+  önerisi OTP'yi bir Cloud Function'a koyuyor; deponun iki ayrı maddesi zaten
+  yazıyor: dağıtmak Blaze istiyor, proje Spark'ta. Panel (Express + Admin SDK)
+  o kutunun yerinde duruyor ve aynı işi yapıyor.

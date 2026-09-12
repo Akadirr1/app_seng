@@ -84,6 +84,17 @@ export function mailReady(): boolean {
   return config !== null;
 }
 
+/**
+ * Gönderen olarak ne yazılacağı — panel bunu ekrana ve açılış satırına basıyor.
+ *
+ * Görünür olması gerekiyor çünkü sessiz bir yanlışı var: `MAIL_FROM` boşsa
+ * değer `SMTP_USER`'a düşüyor, ve kimlik doğrulaması `info@` ile yapılıyorsa
+ * posta `info@`'dan gider. Hata yok, log yok — yalnızca yanlış gönderen.
+ */
+export function mailFrom(): string | null {
+  return config ? config.from : null;
+}
+
 export function initMail(env: MailEnv): { ok: true } | { ok: false; eksik: string[] } {
   const okunan = readMailConfig(env);
   if ('eksik' in okunan) return { ok: false, eksik: okunan.eksik };
@@ -103,15 +114,27 @@ export function initMail(env: MailEnv): { ok: true } | { ok: false; eksik: strin
 export type Mail = { to: string; subject: string; html: string; text: string };
 
 /**
+ * Gönderimin sonucu — panelin test formu bunu ekrana yazıyor.
+ *
+ * `envelope.from` SMTP'ye söylenen gönderen; başlıktaki `From` ondan ayrı
+ * olabilir ve **asıl karar alıcı tarafta veriliyor**: Google'ın kendi belgesi
+ * `smtp.gmail.com` için "From adresi kimlik doğrulanan hesapla aynı olmalı"
+ * diyor, yani takma ad kabul edilmezse Google başlığı kendisi değiştiriyor.
+ * O yüzden panelin yazdığı şey kanıt değil, karşılaştırma noktası: gelen
+ * postanın gönderenine bakmak gerekiyor.
+ */
+export type MailResult = { accepted: string[]; rejected: string[]; envelopeFrom: string };
+
+/**
  * Postayı gönderir. Yapılandırma yoksa **fırlatıyor**, sessizce başarılı
  * olmuyor: "gönderildi" deyip göndermemek, bu defterde birkaç kez yazılmış
  * hatanın aynısı olurdu.
  */
-export async function sendMail(mail: Mail): Promise<void> {
+export async function sendMail(mail: Mail): Promise<MailResult> {
   if (!transporter || !config) {
     throw new Error('SMTP yapılandırılmamış — SMTP_HOST, SMTP_USER, SMTP_PASS gerekiyor.');
   }
-  await transporter.sendMail({
+  const info = await transporter.sendMail({
     from: config.from,
     to: mail.to,
     replyTo: config.replyTo,
@@ -121,4 +144,10 @@ export async function sendMail(mail: Mail): Promise<void> {
     text: mail.text,
     html: mail.html,
   });
+
+  return {
+    accepted: (info.accepted ?? []).map(String),
+    rejected: (info.rejected ?? []).map(String),
+    envelopeFrom: String(info.envelope?.from ?? config.from),
+  };
 }

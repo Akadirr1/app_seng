@@ -8,7 +8,7 @@
  *
  * Runs on plain node, no dependencies, so it works before `npm install` in CI.
  */
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
@@ -422,6 +422,31 @@ check(
       if (!/allow read, write: if false;/.test(blok)) {
         return `${koleksiyon} istemciye kapalı değil`;
       }
+    }
+    return null;
+  },
+);
+
+check(
+  'SMTP kimlik bilgileri uygulamaya girmiyor',
+  'EXPO_PUBLIC_ öneki değeri JS paketine gömüyor — `.ipa`\u2019yı açan herkes okur. ' +
+    'Bir SMTP parolası oraya girerse kulübün alan adından herkes posta gönderebilir, ' +
+    've sızdığı an ancak parola değiştirilerek kapatılabilir.',
+  () => {
+    for (const dir of ['src', 'app']) {
+      const hits = [];
+      const walk = (d) => {
+        for (const e of readdirSync(join(root, d), { withFileTypes: true })) {
+          const rel = `${d}/${e.name}`;
+          if (e.isDirectory()) walk(rel);
+          else if (/\.(ts|tsx)$/.test(e.name)) {
+            const src = readFileSync(join(root, rel), 'utf8').replace(/\/\*[\s\S]*?\*\/|\/\/.*/g, '');
+            if (/SMTP_|MAIL_FROM|MAIL_REPLY_TO/.test(src)) hits.push(rel);
+          }
+        }
+      };
+      walk(dir);
+      if (hits.length) return `${dir}/ SMTP ayarlarına dokunuyor: ${hits.join(', ')}`;
     }
     return null;
   },

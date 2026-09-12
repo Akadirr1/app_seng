@@ -44,8 +44,11 @@ const when = (iso: unknown): string => {
   return `${pad(club.getUTCDate())}.${pad(club.getUTCMonth() + 1)} ${pad(club.getUTCHours())}:${pad(club.getUTCMinutes())}`;
 };
 
+export type MailStatus = { ready: boolean; from: string | null; eksik: string[] };
+
 export function notificationsPage(input: {
   autoPush: boolean;
+  mail: MailStatus;
   devices: DeviceSummary;
   log: LogRow[];
   pending: PendingRow[];
@@ -124,6 +127,31 @@ export function notificationsPage(input: {
         <thead><tr><th>Kategori</th><th class="num">Açık cihaz</th></tr></thead>
         <tbody>${categoryRows}</tbody>
       </table>
+    </div>
+
+    <div class="card">
+      <h2>Posta</h2>
+      <p class="hint">
+        ${
+          input.mail.ready
+            ? `Gönderen: <code>${esc(input.mail.from ?? '')}</code>`
+            : `<b>SMTP yapılandırılmamış</b> — eksik: <code>${esc(input.mail.eksik.join(', '))}</code>. ` +
+              'Doğrulama kodu gönderilemez, yeni hesaplar doğrulanamaz.'
+        }
+      </p>
+      <p class="hint">
+        <b>Buradaki adres, postanın gerçekten geldiği adres değil.</b> Google'ın kendi
+        belgesi <code>smtp.gmail.com</code> için “From adresi kimlik doğrulanan hesapla
+        aynı olmalı” diyor: takma ad kabul edilmezse Google başlığı sessizce
+        <code>SMTP_USER</code>'a çeviriyor. Tek kanıt gelen postanın gönderen satırı —
+        test gönderip oraya bakın.
+      </p>
+      <form method="post" action="/bildirimler/posta-testi">
+        <label>Adres
+          <input type="email" name="to" placeholder="kendi adresin" required>
+        </label>
+        <div class="actions"><button type="submit">Test postası gönder</button></div>
+      </form>
     </div>
 
     <div class="card">
